@@ -775,9 +775,9 @@
                 apiFetch(`/dashboard/active-workers/${businessId}`),
                 apiFetch(`/notifications/${businessId}`)
             ]);
-            const stats = await statsRes.json();
-            const workers = await workersRes.json();
-            const notifs = await notifsRes.json();
+            const stats = statsRes.ok ? await statsRes.json() : {};
+            const workers = workersRes.ok ? await workersRes.json() : [];
+            const notifs = notifsRes.ok ? await notifsRes.json() : [];
 
             document.getElementById('stat-active').textContent = stats.active_count ?? '-';
             document.getElementById('stat-hours').textContent = stats.total_hours ?? '-';
@@ -1340,8 +1340,8 @@
     // ==================== MANAGE SHIFTS ====================
     function nowLocalISO() {
         const now = new Date();
-        now.setSeconds(0, 0);
-        return now.toISOString().slice(0, 16);
+        const pad = n => String(n).padStart(2, '0');
+        return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     }
 
     async function loadManageShifts() {
