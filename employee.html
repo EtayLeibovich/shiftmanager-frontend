@@ -179,6 +179,17 @@
     let userData = null;
     let businessId = null;
 
+    // SECURITY: Escape HTML to prevent XSS when inserting user data into innerHTML
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('leave-start').value = today;
@@ -331,7 +342,7 @@
                     <div>
                         <p class="font-bold text-slate-700">${formatDate(s.start_time)}</p>
                         <p class="text-sm text-slate-500">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</p>
-                        ${s.notes ? `<p class="text-xs text-slate-400 mt-1">${s.notes}</p>` : ''}
+                        ${s.notes ? `<p class="text-xs text-slate-400 mt-1">${escapeHtml(s.notes)}</p>` : ''}
                     </div>
                     <span class="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm">
                         ${calcHours(s.start_time, s.end_time)} ש׳
@@ -358,10 +369,10 @@
                 <div class="bg-white rounded-xl border border-slate-200 p-4">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="font-bold text-slate-700">${typeLabel[r.leave_type] || r.leave_type}</p>
-                            <p class="text-sm text-slate-500">📅 ${r.start_date} ← ${r.end_date}</p>
-                            ${r.reason ? `<p class="text-xs text-slate-400 mt-1">"${r.reason}"</p>` : ''}
-                            ${r.manager_note ? `<p class="text-xs text-slate-500 mt-1 italic">הערת מנהל: "${r.manager_note}"</p>` : ''}
+                            <p class="font-bold text-slate-700">${escapeHtml(typeLabel[r.leave_type] || r.leave_type)}</p>
+                            <p class="text-sm text-slate-500">📅 ${escapeHtml(r.start_date)} ← ${escapeHtml(r.end_date)}</p>
+                            ${r.reason ? `<p class="text-xs text-slate-400 mt-1">"${escapeHtml(r.reason)}"</p>` : ''}
+                            ${r.manager_note ? `<p class="text-xs text-slate-500 mt-1 italic">הערת מנהל: "${escapeHtml(r.manager_note)}"</p>` : ''}
                         </div>
                         <span class="px-3 py-1 rounded-full text-xs font-bold ${statusStyle[r.status] || ''}">${statusLabel[r.status] || r.status}</span>
                     </div>
@@ -413,7 +424,7 @@
             if (!notifs.length) { container.innerHTML = ''; return; }
             container.innerHTML = notifs.slice(0, 3).map(n => `
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 flex justify-between items-center">
-                    <span class="text-sm text-blue-800 font-medium">${n.message}</span>
+                    <span class="text-sm text-blue-800 font-medium">${escapeHtml(n.message)}</span>
                     <button onclick="dismissNotif(${n.id})" class="text-blue-400 hover:text-blue-600 mr-2 text-lg">×</button>
                 </div>
             `).join('');

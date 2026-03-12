@@ -693,6 +693,18 @@
         }
     });
 
+    // SECURITY: Escape HTML special characters to prevent XSS.
+    // Use this wrapper for ANY user-controlled string inserted into innerHTML.
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function apiFetch(path, options = {}) {
         return fetch(`${API}${path}`, {
             ...options,
@@ -701,6 +713,10 @@
                 'Authorization': `Bearer ${token}`,
                 ...(options.headers || {})
             }
+        // SECURITY: intercept 401 — token expired or invalid → force logout
+        }).then(res => {
+            if (res.status === 401) { handleLogout(); }
+            return res;
         });
     }
 
@@ -834,8 +850,8 @@
                 container.innerHTML = workers.map(w => `
                     <div class="worker-card clocked-in">
                         <div>
-                            <span style="font-weight: 700; color: white;">${w.full_name}</span>
-                            <span style="font-size: 13px; color: #64748b; margin-right: 10px;">נכנס ${formatTime(w.clock_in)} · <span style="color: #10b981; font-weight: 700;">${w.hours_so_far} שעות</span></span>
+                            <span style="font-weight: 700; color: white;">${escapeHtml(w.full_name)}</span>
+                            <span style="font-size: 13px; color: #64748b; margin-right: 10px;">נכנס ${formatTime(w.clock_in)} · <span style="color: #10b981; font-weight: 700;">${escapeHtml(w.hours_so_far)} שעות</span></span>
                             ${w.hours_so_far > 8 ? '<span style="background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-right: 6px;">⚠️ חריגה</span>' : ''}
                         </div>
                         <button onclick="forceOut(${w.shift_id})" style="background: rgba(244,63,94,0.1); color: #f43f5e; border: 1px solid rgba(244,63,94,0.2); padding: 7px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;">🔴 הוצא</button>
@@ -861,7 +877,7 @@
         badge.textContent = notifs.length; badge.style.display = 'flex';
         container.innerHTML = notifs.slice(0, 5).map(n => `
             <div class="notif-item">
-                <span style="font-size: 14px; color: #93c5fd; font-weight: 500;">${n.message}</span>
+                <span style="font-size: 14px; color: #93c5fd; font-weight: 500;">${escapeHtml(n.message)}</span>
                 <button onclick="dismissNotif(${n.id})" style="color: #3b82f6; margin-right: 12px; font-size: 20px; line-height: 1; background: none; border: none; cursor: pointer; padding: 0 4px;" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#3b82f6'">×</button>
             </div>
         `).join('');
@@ -894,11 +910,11 @@
             if (!tbody) return;
             tbody.innerHTML = employees.map(e => `
                 <tr>
-                    <td style="font-weight: 600; color: white;">${e.full_name}</td>
+                    <td style="font-weight: 600; color: white;">${escapeHtml(e.full_name)}</td>
                     <td><span class="${e.role === 'manager' ? 'badge-blue' : 'badge-gray'}">${e.role === 'manager' ? 'מנהל' : 'עובד'}</span></td>
-                    <td style="font-family: monospace; color: #64748b;">${e.passcode}</td>
+                    <td style="font-family: monospace; color: #64748b;">${escapeHtml(e.passcode)}</td>
                     <td style="font-weight: 700; color: #10b981;">₪${e.hourly_rate || 0}</td>
-                    <td style="color: #64748b;">${e.phone || '-'}</td>
+                    <td style="color: #64748b;">${escapeHtml(e.phone) || '-'}</td>
                     <td><span class="${e.is_active ? 'badge-green' : 'badge-rose'}">${e.is_active ? 'פעיל' : 'לא פעיל'}</span></td>
                     <td>
                         <button onclick="openEmployeeModal(${e.id})" style="color: #3b82f6; font-weight: 700; font-size: 13px; background: none; border: none; cursor: pointer; margin-left: 12px;">עריכה</button>
@@ -1015,9 +1031,9 @@
                     <p style="font-weight: 700; font-size: 12px; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; margin-bottom: 8px;">${info.label}</p>
                     ${info.shifts.map(s => `
                         <div style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 8px; margin-bottom: 6px; font-size: 12px;">
-                            <p style="font-weight: 700; color: #93c5fd;">${s.full_name}</p>
+                            <p style="font-weight: 700; color: #93c5fd;">${escapeHtml(s.full_name)}</p>
                             <p style="color: #3b82f6;">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</p>
-                            ${s.notes ? `<p style="color: #64748b;">${s.notes}</p>` : ''}
+                            ${s.notes ? `<p style="color: #64748b;">${escapeHtml(s.notes)}</p>` : ''}
                             <button onclick="deleteScheduledShift(${s.id})" style="color: #f43f5e; font-size: 11px; background: none; border: none; cursor: pointer; margin-top: 4px; font-weight: 700;">× מחק</button>
                         </div>
                     `).join('')}
@@ -1088,14 +1104,14 @@
                 <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                         <div>
-                            <span style="font-weight: 700; font-size: 16px; color: white;">${r.full_name}</span>
-                            <span style="font-size: 13px; color: #64748b; margin-right: 10px;">${typeLabels[r.leave_type] || r.leave_type}</span>
+                            <span style="font-weight: 700; font-size: 16px; color: white;">${escapeHtml(r.full_name)}</span>
+                            <span style="font-size: 13px; color: #64748b; margin-right: 10px;">${escapeHtml(typeLabels[r.leave_type] || r.leave_type)}</span>
                         </div>
                         <span class="${leaveStatusClass[r.status] || 'badge-gray'}">${statusLabels[r.status] || r.status}</span>
                     </div>
                     <p style="color: #64748b; font-size: 13px; margin-bottom: 4px;">📅 ${r.start_date} → ${r.end_date}</p>
-                    ${r.reason ? `<p style="color: #475569; font-size: 13px; margin-bottom: 8px;">"${r.reason}"</p>` : ''}
-                    ${r.manager_note ? `<p style="color: #475569; font-size: 12px; font-style: italic; margin-bottom: 8px;">הערת מנהל: ${r.manager_note}</p>` : ''}
+                    ${r.reason ? `<p style="color: #475569; font-size: 13px; margin-bottom: 8px;">"${escapeHtml(r.reason)}"</p>` : ''}
+                    ${r.manager_note ? `<p style="color: #475569; font-size: 12px; font-style: italic; margin-bottom: 8px;">הערת מנהל: ${escapeHtml(r.manager_note)}</p>` : ''}
                     ${r.status === 'pending' ? `
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
                             <button onclick="promptLeaveAction(${r.id}, 'approved')" class="btn-emerald" style="font-size: 13px; padding: 8px 16px;">✅ אשר</button>
@@ -1160,7 +1176,7 @@
             }
             document.getElementById('shifts-table').innerHTML = shifts.map(s => `
                 <tr>
-                    <td style="font-weight: 600; color: white;">${s.full_name}</td>
+                    <td style="font-weight: 600; color: white;">${escapeHtml(s.full_name)}</td>
                     <td style="font-size: 13px; color: #64748b;">${formatDateTime(s.clock_in)}</td>
                     <td style="font-size: 13px; color: #64748b;">${s.clock_out ? formatDateTime(s.clock_out) : '<span style="color: #10b981; font-weight: 700;">פעיל</span>'}</td>
                     <td style="font-weight: 700; color: #3b82f6;">${s.total_hours != null ? s.total_hours + ' ש׳' : '-'}</td>
@@ -1185,7 +1201,7 @@
             if (!active.length) { container.innerHTML = ''; return; }
             container.innerHTML = active.map(e => `
                 <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 16px; text-align: center;">
-                    <p style="font-weight: 700; font-size: 13px; color: white; margin-bottom: 4px;">${e.full_name}</p>
+                    <p style="font-weight: 700; font-size: 13px; color: white; margin-bottom: 4px;">${escapeHtml(e.full_name)}</p>
                     <p style="font-size: 30px; font-weight: 900; color: #3b82f6;">${e.total_hours}</p>
                     <p style="font-size: 11px; color: #64748b; margin-top: 4px;">שעות · ${e.total_shifts} משמרות</p>
                 </div>
@@ -1237,7 +1253,7 @@
             `;
             const rows = data.employees.map(e => `
                 <tr>
-                    <td style="font-weight: 600; color: white;">${e.full_name}</td>
+                    <td style="font-weight: 600; color: white;">${escapeHtml(e.full_name)}</td>
                     <td><span class="${e.role === 'manager' ? 'badge-blue' : 'badge-gray'}">${e.role === 'manager' ? 'מנהל' : 'עובד'}</span></td>
                     <td style="text-align: center; color: #94a3b8;">${e.total_shifts}</td>
                     <td style="font-weight: 700; color: #3b82f6;">${e.total_hours}</td>
@@ -1279,13 +1295,13 @@
             container.innerHTML = branches.map(b => `
                 <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; padding: 22px; transition: border-color 0.2s;" onmouseover="this.style.borderColor='rgba(59,130,246,0.3)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.07)'">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                        <h3 style="font-weight: 700; font-size: 16px; color: white;">🏢 ${b.name}</h3>
+                        <h3 style="font-weight: 700; font-size: 16px; color: white;">🏢 ${escapeHtml(b.name)}</h3>
                         <div style="display: flex; gap: 10px;">
                             <button onclick="openBranchModal(${b.id})" style="color: #3b82f6; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">עריכה</button>
                             <button onclick="deleteBranch(${b.id})" style="color: #f43f5e; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">מחק</button>
                         </div>
                     </div>
-                    ${b.address ? `<p style="color: #64748b; font-size: 13px;">📍 ${b.address}</p>` : ''}
+                    ${b.address ? `<p style="color: #64748b; font-size: 13px;">📍 ${escapeHtml(b.address)}</p>` : ''}
                 </div>
             `).join('');
         } catch (e) {}
@@ -1338,8 +1354,8 @@
 
         const bId = parseInt(businessId) || 1;
 
-        // הוסף את שאלת המשתמש לתצוגה
-        box.innerHTML += `<div style="text-align:right;margin:8px 0;color:#93c5fd;"><strong>אתה:</strong> ${q}</div>`;
+        // SECURITY: Use escapeHtml on user input before injecting into innerHTML
+        box.innerHTML += `<div style="text-align:right;margin:8px 0;color:#93c5fd;"><strong>אתה:</strong> ${escapeHtml(q)}</div>`;
         box.innerHTML += `<div id="ai-thinking" style="color:#6b7280;">🤖 חושב...</div>`;
         box.scrollTop = box.scrollHeight;
         input.value = '';
@@ -1366,7 +1382,8 @@
 
             // הסר "חושב..." והצג תשובה
             document.getElementById('ai-thinking')?.remove();
-            box.innerHTML += `<div style="margin:8px 0;color:#d1fae5;"><strong>🤖 AI:</strong> ${answer.replace(/\n/g, '<br>')}</div>`;
+            // SECURITY: escape AI answer then safely restore newlines as <br>
+            box.innerHTML += `<div style="margin:8px 0;color:#d1fae5;"><strong>🤖 AI:</strong> ${escapeHtml(answer).replace(/\n/g, '<br>')}</div>`;
             box.scrollTop = box.scrollHeight;
         } catch (err) {
             console.error("AI Error:", err);
@@ -1398,7 +1415,7 @@
                 <div style="background: var(--surface2); border: 1px solid ${w.clocked_in ? 'rgba(16,185,129,0.3)' : 'var(--border)'}; ${w.clocked_in ? 'border-right: 3px solid #10b981;' : ''} border-radius: 14px; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <p style="font-weight: 700; font-size: 16px; color: white; margin-bottom: 4px;">
-                            ${w.full_name}
+                            ${escapeHtml(w.full_name)}
                             <span class="${w.role === 'manager' ? 'badge-blue' : 'badge-gray'}" style="margin-right: 8px;">${w.role === 'manager' ? 'מנהל' : 'עובד'}</span>
                         </p>
                         ${w.clocked_in
@@ -1521,10 +1538,9 @@
             container.innerHTML = users.map(u => `
                 <div style="background: var(--surface2); border: 1px solid rgba(59,130,246,0.25); border-right: 3px solid #3b82f6; border-radius: 16px; padding: 22px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <p style="font-weight: 700; font-size: 18px; color: white; margin-bottom: 4px;">${u.full_name}</p>
-                        ${u.phone ? `<p style="color: #64748b; font-size: 13px;">📞 ${u.phone}</p>` : ''}
-                        ${u.email ? `<p style="color: #64748b; font-size: 13px;">📧 ${u.email}</p>` : ''}
-                        <p style="color: #475569; font-size: 12px; margin-top: 4px;">קוד אישי: <span style="font-family: monospace;">${u.passcode}</span></p>
+                        <p style="font-weight: 700; font-size: 18px; color: white; margin-bottom: 4px;">${escapeHtml(u.full_name)}</p>
+                        ${u.phone ? `<p style="color: #64748b; font-size: 13px;">📞 ${escapeHtml(u.phone)}</p>` : ''}
+                        ${u.email ? `<p style="color: #64748b; font-size: 13px;">📧 ${escapeHtml(u.email)}</p>` : ''}
                     </div>
                     <div style="display: flex; gap: 10px;">
                         <button onclick="handleApproval(${u.id}, 'approve')" class="btn-emerald" style="padding: 10px 22px;">✅ אשר</button>
