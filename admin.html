@@ -215,6 +215,25 @@
         /* Prevent page-wide horizontal overflow */
         html, body { max-width: 100%; overflow-x: hidden; }
 
+        /* ===== NOTIFICATION DROPDOWN ===== */
+        #notif-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 10px);
+            left: 0;
+            width: 340px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            z-index: 300;
+            overflow: hidden;
+        }
+        #notif-dropdown.open { display: block; }
+        @media (max-width: 768px) {
+            #notif-dropdown { width: calc(100vw - 20px); left: auto; right: 0; }
+        }
+
         /* Table containers scroll horizontally instead of breaking layout */
         .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 
@@ -338,10 +357,20 @@
             <div style="display: flex; align-items: center; gap: 8px;">
                 <!-- Hamburger — mobile only -->
                 <button id="mob-menu-btn" onclick="toggleSidebar()" style="align-items: center; justify-content: center; width: 38px; height: 38px; background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.25); border-radius: 10px; font-size: 20px; cursor: pointer;">☰</button>
-                <button onclick="loadNotifications()" style="position: relative; padding: 8px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 16px;">
-                    🔔
-                    <span id="notif-badge" style="position: absolute; top: -4px; right: -4px; background: #f43f5e; color: white; font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: none; align-items: center; justify-content: center;">0</span>
-                </button>
+                <div id="notif-btn-wrap" style="position: relative;">
+                    <button onclick="toggleNotifDropdown(event)" style="position: relative; padding: 8px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 16px;">
+                        🔔
+                        <span id="notif-badge" style="position: absolute; top: -4px; right: -4px; background: #f43f5e; color: white; font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: none; align-items: center; justify-content: center;">0</span>
+                    </button>
+                    <!-- Notification Dropdown -->
+                    <div id="notif-dropdown" onclick="event.stopPropagation()">
+                        <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 700; color: white; font-size: 15px;">🔔 התראות</span>
+                            <button onclick="markAllRead()" style="color: #3b82f6; font-size: 12px; font-weight: 600; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px;" onmouseover="this.style.background='rgba(59,130,246,0.1)'" onmouseout="this.style.background='none'">סמן הכל כנקרא</button>
+                        </div>
+                        <div id="notif-dropdown-list" style="max-height: 380px; overflow-y: auto; padding: 10px;"></div>
+                    </div>
+                </div>
                 <button onclick="refreshCurrentTab()" style="background: rgba(59,130,246,0.1); color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.2)'" onmouseout="this.style.background='rgba(59,130,246,0.1)'">
                     🔄 רענן
                 </button>
@@ -759,6 +788,8 @@
         if (token && businessId) {
             showApp();
         }
+        // Close notification dropdown when clicking anywhere outside it
+        document.addEventListener('click', () => closeNotifDropdown());
     });
 
     // SECURITY: Escape HTML special characters to prevent XSS.
@@ -980,8 +1011,68 @@
 
     async function dismissNotif(id) {
         await apiFetch(`/notifications/mark-read/${id}`, { method: 'POST' });
-        loadNotifications();
+        loadNotifDropdown();
         if (currentTab === 'dashboard') loadDashboard();
+    }
+
+    function toggleNotifDropdown(e) {
+        e.stopPropagation();
+        const dd = document.getElementById('notif-dropdown');
+        if (dd.classList.contains('open')) {
+            dd.classList.remove('open');
+        } else {
+            loadNotifDropdown();
+            dd.classList.add('open');
+        }
+    }
+
+    function closeNotifDropdown() {
+        document.getElementById('notif-dropdown')?.classList.remove('open');
+    }
+
+    async function loadNotifDropdown() {
+        try {
+            const res = await apiFetch(`/notifications/${businessId}`);
+            if (res.ok) {
+                const data = await res.json();
+                renderNotifications(data);
+                renderNotifDropdown(data);
+            }
+        } catch {}
+    }
+
+    function renderNotifDropdown(notifs) {
+        const list = document.getElementById('notif-dropdown-list');
+        if (!list) return;
+        if (!notifs.length) {
+            list.innerHTML = '<p style="color: #64748b; text-align: center; padding: 28px 16px; font-size: 14px;">אין התראות חדשות ✅</p>';
+            return;
+        }
+        const typeNav = {
+            registration_pending: { label: '→ אישור עובדים', tab: 'approvals' },
+            leave_pending:        { label: '→ בקשות היעדרות', tab: 'leave' },
+        };
+        list.innerHTML = notifs.map(n => {
+            const nav = typeNav[n.type];
+            return `
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                        <p style="font-size: 13px; color: #cbd5e1; line-height: 1.5; flex: 1; margin: 0;">${escapeHtml(n.message)}</p>
+                        <button onclick="dismissNotif(${n.id})" style="color: #475569; background: none; border: none; cursor: pointer; font-size: 20px; line-height: 1; padding: 0; flex-shrink: 0;" onmouseover="this.style.color='#f43f5e'" onmouseout="this.style.color='#475569'" title="סמן כנקרא">×</button>
+                    </div>
+                    ${nav ? `<button onclick="switchTab('${nav.tab}'); closeNotifDropdown();" style="margin-top: 8px; color: #3b82f6; font-size: 12px; font-weight: 700; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 4px 12px; cursor: pointer;">${nav.label}</button>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function markAllRead() {
+        try {
+            await apiFetch(`/notifications/mark-all-read/${businessId}`, { method: 'POST' });
+            closeNotifDropdown();
+            loadNotifications();
+            if (currentTab === 'dashboard') loadDashboard();
+        } catch {}
     }
 
     async function forceOut(shiftId) {
