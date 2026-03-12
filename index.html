@@ -57,6 +57,7 @@
 
             <input type="password" id="emp-passcode"
                    placeholder="הכנס קוד אישי"
+                   autocomplete="off"
                    class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
                    onkeypress="if(event.key==='Enter') handleShift('clock-in')">
 
@@ -100,6 +101,7 @@
             <h2 class="text-2xl font-black text-slate-800 mb-6">כניסת מנהל</h2>
             <input type="password" id="manager-passcode"
                    placeholder="קוד מנהל"
+                   autocomplete="off"
                    class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
                    onkeypress="if(event.key==='Enter') handleManagerLogin()">
             <button onclick="handleManagerLogin()"
@@ -116,6 +118,14 @@
 <script>
     const API = "https://shiftmanager-backend-n0ix.onrender.com";
     let confirmTimer = null;
+
+    // נקה שדות פסקוד בטעינת הדף — מונע אוטו-פיל של הדפדפן
+    window.addEventListener('load', () => {
+        ['emp-passcode', 'manager-passcode'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+    });
 
     // הצג שעה שוטפת
     setInterval(() => {
