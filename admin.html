@@ -721,6 +721,9 @@
             <button onclick="saveShiftEdit()" class="btn-primary" style="flex: 1;">שמור</button>
             <button onclick="closeModal('edit-shift-modal')" class="btn-ghost" style="flex: 1;">ביטול</button>
         </div>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.07);">
+            <button onclick="deleteShift()" class="btn-rose" style="width: 100%; font-size: 13px; padding: 10px;">🗑️ מחק משמרת לצמיתות</button>
+        </div>
     </div>
 </div>
 
@@ -1313,6 +1316,16 @@
         };
         try {
             const res = await apiFetch(`/shifts/edit/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+            if (res.ok) { closeModal('edit-shift-modal'); loadAllShifts(); }
+            else { const d = await res.json(); alert(d.detail || 'שגיאה'); }
+        } catch (e) {}
+    }
+
+    async function deleteShift() {
+        const id = document.getElementById('edit-shift-id').value;
+        if (!confirm('למחוק את המשמרת לצמיתות? לא ניתן לשחזר.')) return;
+        try {
+            const res = await apiFetch(`/shifts/${id}`, { method: 'DELETE' });
             if (res.ok) { closeModal('edit-shift-modal'); loadAllShifts(); }
             else { const d = await res.json(); alert(d.detail || 'שגיאה'); }
         } catch (e) {}
