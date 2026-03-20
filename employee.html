@@ -219,6 +219,18 @@
 
 <script>
     const API = "https://shiftmanager-backend-n0ix.onrender.com";
+
+    async function fetchWithRetry(url, options, retries = 2) {
+        for (let i = 0; i <= retries; i++) {
+            try {
+                const res = await fetch(url, options);
+                return res;
+            } catch (e) {
+                if (i === retries) throw e;
+                await new Promise(r => setTimeout(r, 1500));
+            }
+        }
+    }
     let passcode = sessionStorage.getItem('emp_passcode') || '';
     let userData = null;
     let businessId = null;
@@ -309,7 +321,7 @@
         const btn = document.getElementById('btn-emp-setup-confirm');
         btn.disabled = true; btn.textContent = '⏳ מאמת...'; errEl.textContent = '';
         try {
-            const res = await fetch(`${API}/auth/verify-2fa`, {
+            const res = await fetchWithRetry(`${API}/auth/verify-2fa`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ pending_token: _setupPendingToken, code })
@@ -333,7 +345,7 @@
         const btn = document.getElementById('btn-emp-totp');
         btn.disabled = true; btn.textContent = '⏳ מאמת...'; errEl.textContent = '';
         try {
-            const res = await fetch(`${API}/auth/verify-2fa`, {
+            const res = await fetchWithRetry(`${API}/auth/verify-2fa`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ pending_token: _pendingToken, code })
