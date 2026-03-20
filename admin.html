@@ -16,6 +16,7 @@
       }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -324,11 +325,66 @@
         </nav>
         <div style="padding: 14px; border-top: 1px solid rgba(255,255,255,0.07);">
             <p id="sidebar-manager" style="color: #64748b; font-size: 13px; margin-bottom: 10px;">מנהל</p>
+            <button onclick="open2FASetupModal()" id="btn-2fa-sidebar" style="width: 100%; background: rgba(139,92,246,0.1); color: #8b5cf6; border: 1px solid rgba(139,92,246,0.2); padding: 9px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 8px;" onmouseover="this.style.background='rgba(139,92,246,0.2)'" onmouseout="this.style.background='rgba(139,92,246,0.1)'">
+                🔐 אימות דו-שלבי
+            </button>
             <button onclick="handleLogout()" style="width: 100%; background: rgba(244,63,94,0.1); color: #f43f5e; border: 1px solid rgba(244,63,94,0.2); padding: 9px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(244,63,94,0.2)'" onmouseout="this.style.background='rgba(244,63,94,0.1)'">
                 התנתק 🔴
             </button>
         </div>
     </aside>
+
+    <!-- ===== מודל הגדרת 2FA ===== -->
+    <div id="modal-2fa-setup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:100; align-items:center; justify-content:center;">
+        <div style="background:#0d1424; border:1px solid rgba(139,92,246,0.3); border-radius:20px; padding:32px; width:360px; max-width:95vw; text-align:center; color:#e2e8f0;">
+
+            <!-- שלב 1: כפתור התחל -->
+            <div id="2fa-step-start">
+                <div style="font-size:48px; margin-bottom:12px;">🔐</div>
+                <h2 style="font-size:20px; font-weight:900; margin-bottom:8px;">אימות דו-שלבי</h2>
+                <p id="2fa-current-status" style="color:#64748b; font-size:13px; margin-bottom:24px;"></p>
+                <button id="btn-start-setup" onclick="startSetup2FA()" style="width:100%; background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:white; border:none; padding:14px; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:10px;">
+                    הפעל / חדש QR Code
+                </button>
+                <button id="btn-disable-2fa" onclick="disable2FA()" style="display:none; width:100%; background:rgba(244,63,94,0.1); color:#f43f5e; border:1px solid rgba(244,63,94,0.3); padding:10px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:10px;">
+                    כבה אימות דו-שלבי
+                </button>
+                <button onclick="close2FASetupModal()" style="color:#64748b; font-size:13px; background:none; border:none; cursor:pointer;">← סגור</button>
+            </div>
+
+            <!-- שלב 2: QR code + אימות -->
+            <div id="2fa-step-qr" style="display:none;">
+                <div style="font-size:32px; margin-bottom:8px;">📱</div>
+                <h2 style="font-size:18px; font-weight:900; margin-bottom:6px;">סרוק עם Google Authenticator</h2>
+                <p style="color:#64748b; font-size:12px; margin-bottom:16px;">פתח את האפליקציה ← לחץ + ← סרוק QR</p>
+                <div id="qrcode-container" style="display:flex; justify-content:center; margin-bottom:16px;">
+                    <div id="qrcode" style="background:white; padding:12px; border-radius:12px; display:inline-block;"></div>
+                </div>
+                <p style="color:#64748b; font-size:11px; margin-bottom:4px;">לא מצליח לסרוק? הכנס ידנית:</p>
+                <p id="2fa-secret-text" style="font-family:monospace; font-size:12px; color:#8b5cf6; letter-spacing:2px; margin-bottom:16px; word-break:break-all;"></p>
+                <p style="color:#e2e8f0; font-size:13px; margin-bottom:8px; font-weight:600;">הכנס את הקוד מהאפליקציה לאימות:</p>
+                <input type="text" id="setup-totp-code" inputmode="numeric" maxlength="6" placeholder="123456"
+                       style="width:100%; padding:14px; background:#111827; border:1px solid rgba(139,92,246,0.4); border-radius:12px; text-align:center; font-size:28px; letter-spacing:6px; color:white; margin-bottom:12px; outline:none;"
+                       onkeypress="if(event.key==='Enter') confirmSetup2FA()">
+                <button onclick="confirmSetup2FA()" id="btn-confirm-setup" style="width:100%; background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; padding:14px; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:10px;">
+                    ✅ אמת והפעל
+                </button>
+                <p id="setup-totp-error" style="color:#f43f5e; font-size:13px; min-height:20px;"></p>
+                <button onclick="show2FAStep('start')" style="color:#64748b; font-size:13px; background:none; border:none; cursor:pointer;">← חזור</button>
+            </div>
+
+            <!-- שלב 3: הצלחה -->
+            <div id="2fa-step-success" style="display:none;">
+                <div style="font-size:64px; margin-bottom:16px;">✅</div>
+                <h2 style="font-size:20px; font-weight:900; color:#10b981; margin-bottom:8px;">הופעל בהצלחה!</h2>
+                <p style="color:#64748b; font-size:13px; margin-bottom:24px;">בכניסה הבאה תתבקש להזין קוד מ-Google Authenticator</p>
+                <button onclick="close2FASetupModal()" style="width:100%; background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; padding:14px; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer;">
+                    סגור
+                </button>
+            </div>
+
+        </div>
+    </div>
 
     <!-- MAIN CONTENT -->
     <main id="main-content" style="margin-right: 240px; flex: 1; overflow-y: auto; background: var(--bg);">
@@ -822,6 +878,120 @@
         localStorage.removeItem('sm_manager_name');
         if (notifInterval) clearInterval(notifInterval);
         window.location.replace('index.html');
+    }
+
+    // ==================== 2FA SETUP ====================
+    let _setupToken = null;
+
+    function open2FASetupModal() {
+        show2FAStep('start');
+        // בדוק אם 2FA כבר מופעל
+        apiFetch('/auth/2fa-status').then(r => r.json()).then(data => {
+            const statusEl = document.getElementById('2fa-current-status');
+            const disableBtn = document.getElementById('btn-disable-2fa');
+            if (data.is_2fa_enabled) {
+                statusEl.innerHTML = '<span style="color:#10b981">✅ מופעל כרגע</span>';
+                disableBtn.style.display = 'block';
+            } else {
+                statusEl.innerHTML = '<span style="color:#64748b">⭕ לא מופעל</span>';
+                disableBtn.style.display = 'none';
+            }
+        }).catch(() => {});
+        document.getElementById('modal-2fa-setup').style.display = 'flex';
+    }
+
+    function close2FASetupModal() {
+        _setupToken = null;
+        document.getElementById('modal-2fa-setup').style.display = 'none';
+    }
+
+    function show2FAStep(step) {
+        ['start','qr','success'].forEach(s => {
+            document.getElementById(`2fa-step-${s}`).style.display = 'none';
+        });
+        document.getElementById(`2fa-step-${step}`).style.display = 'block';
+    }
+
+    async function startSetup2FA() {
+        const btn = document.getElementById('btn-start-setup');
+        btn.textContent = '⏳ מייצר QR...';
+        btn.disabled = true;
+        try {
+            const res = await apiFetch('/auth/setup-2fa', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) { alert(data.detail || 'שגיאה'); return; }
+
+            _setupToken = data.setup_token;
+            document.getElementById('2fa-secret-text').textContent = data.secret;
+
+            // צור QR code
+            const qrEl = document.getElementById('qrcode');
+            qrEl.innerHTML = '';
+            new QRCode(qrEl, {
+                text: data.provisioning_uri,
+                width: 200, height: 200,
+                colorDark: '#000000', colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            document.getElementById('setup-totp-code').value = '';
+            document.getElementById('setup-totp-error').textContent = '';
+            show2FAStep('qr');
+            setTimeout(() => document.getElementById('setup-totp-code').focus(), 200);
+        } catch {
+            alert('שגיאת תקשורת');
+        } finally {
+            btn.textContent = 'הפעל / חדש QR Code';
+            btn.disabled = false;
+        }
+    }
+
+    async function confirmSetup2FA() {
+        const code = document.getElementById('setup-totp-code').value.trim();
+        const errEl = document.getElementById('setup-totp-error');
+        if (!code || code.length !== 6) { errEl.textContent = 'הכנס קוד בן 6 ספרות'; return; }
+
+        const btn = document.getElementById('btn-confirm-setup');
+        btn.textContent = '⏳ מאמת...';
+        btn.disabled = true;
+        errEl.textContent = '';
+
+        try {
+            const res = await fetch(`${API}/auth/verify-2fa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pending_token: _setupToken, code })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                errEl.textContent = data.detail || 'קוד שגוי';
+                document.getElementById('setup-totp-code').value = '';
+                document.getElementById('setup-totp-code').focus();
+                return;
+            }
+            show2FAStep('success');
+        } catch {
+            errEl.textContent = 'שגיאת תקשורת';
+        } finally {
+            btn.textContent = '✅ אמת והפעל';
+            btn.disabled = false;
+        }
+    }
+
+    async function disable2FA() {
+        if (!confirm('האם לכבות את האימות הדו-שלבי?')) return;
+        try {
+            const res = await apiFetch('/auth/disable-2fa', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                close2FASetupModal();
+                alert('✅ האימות הדו-שלבי כובה');
+            } else {
+                alert(data.detail || 'שגיאה');
+            }
+        } catch {
+            alert('שגיאת תקשורת');
+        }
     }
 
     function showApp() {
