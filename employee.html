@@ -16,6 +16,7 @@
       }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Heebo', sans-serif; }
@@ -39,6 +40,49 @@
         </button>
         <p id="login-error" class="mt-4 text-rose-500 font-bold text-sm min-h-[20px]"></p>
         <a href="index.html" class="mt-6 block text-slate-400 text-sm hover:text-slate-600">→ שעון נוכחות משותף</a>
+    </div>
+</div>
+
+<!-- ==================== מסך הגדרת 2FA ==================== -->
+<div id="setup-2fa-screen" style="display:none" class="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center">
+        <div class="text-5xl mb-3">🔐</div>
+        <h2 class="text-2xl font-black text-slate-800 mb-1">הגדרת אבטחה חובה</h2>
+        <p class="text-slate-500 text-sm mb-5">סרוק עם Google Authenticator כדי להמשיך</p>
+        <div id="emp-setup-loading" class="py-8 text-slate-400">⏳ טוען...</div>
+        <div id="emp-setup-qr" style="display:none">
+            <div id="emp-qrcode" class="bg-white p-3 rounded-xl border border-slate-200 inline-block mb-3"></div>
+            <p class="text-xs text-slate-400 mb-1">קוד ידני:</p>
+            <p id="emp-2fa-secret" class="font-mono text-xs text-purple-600 tracking-widest mb-5 break-all"></p>
+            <p class="text-sm font-bold text-slate-700 mb-2">הכנס קוד מהאפליקציה:</p>
+            <input type="text" id="emp-setup-code" maxlength="6" inputmode="numeric"
+                   placeholder="123456"
+                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+                   onkeypress="if(event.key==='Enter') confirmEmpSetup2FA()">
+            <p id="emp-setup-error" class="text-rose-500 text-sm min-h-[20px] mb-2"></p>
+            <button onclick="confirmEmpSetup2FA()" id="btn-emp-setup-confirm"
+                    class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
+                ✅ אמת וכנס
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== מסך אימות 2FA ==================== -->
+<div id="verify-2fa-screen" style="display:none" class="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center">
+        <div class="text-5xl mb-3">🔑</div>
+        <h2 class="text-2xl font-black text-slate-800 mb-1">אימות דו-שלבי</h2>
+        <p class="text-slate-500 text-sm mb-6">הכנס את הקוד מ-Google Authenticator</p>
+        <input type="text" id="emp-totp-code" maxlength="6" inputmode="numeric"
+               placeholder="123456"
+               class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+               onkeypress="if(event.key==='Enter') submitEmpTOTP()">
+        <p id="emp-totp-error" class="text-rose-500 text-sm min-h-[20px] mb-2"></p>
+        <button onclick="submitEmpTOTP()" id="btn-emp-totp"
+                class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
+            כניסה
+        </button>
     </div>
 </div>
 
@@ -178,6 +222,9 @@
     let passcode = sessionStorage.getItem('emp_passcode') || '';
     let userData = null;
     let businessId = null;
+    let _setupPendingToken = null;
+    let _pendingToken = null;
+    let _pendingPasscode = null;
 
     // SECURITY: Escape HTML to prevent XSS when inserting user data into innerHTML
     function escapeHtml(str) {
@@ -202,24 +249,120 @@
         const code = document.getElementById('login-passcode').value.trim();
         const err = document.getElementById('login-error');
         if (!code) { err.textContent = 'הכנס קוד'; return; }
+        const btn = document.querySelector('#login-screen button');
+        btn.disabled = true; btn.textContent = '⏳...';
+        err.textContent = '';
         try {
-            const res = await fetch(`${API}/users/login`, {
+            const res = await fetch(`${API}/auth/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ passcode: code })
             });
-            const user = await res.json();
-            if (!res.ok) { err.textContent = user.detail || 'קוד שגוי'; return; }
-            passcode = code;
-            sessionStorage.setItem('emp_passcode', code);
-            showPortal();
+            const data = await res.json();
+            if (!res.ok) { err.textContent = data.detail || 'קוד שגוי'; return; }
+            _pendingPasscode = code;
+            if (data.requires_2fa_setup) {
+                _setupPendingToken = data.pending_token;
+                await openEmpSetup2FA();
+            } else if (data.requires_2fa) {
+                _pendingToken = data.pending_token;
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('verify-2fa-screen').style.display = 'flex';
+                document.getElementById('emp-totp-code').value = '';
+                document.getElementById('emp-totp-error').textContent = '';
+                setTimeout(() => document.getElementById('emp-totp-code').focus(), 100);
+            }
         } catch { err.textContent = 'שגיאת תקשורת'; }
+        finally { btn.disabled = false; btn.textContent = 'כניסה'; }
+    }
+
+    async function openEmpSetup2FA() {
+        document.getElementById('emp-setup-qr').style.display = 'none';
+        document.getElementById('emp-setup-loading').style.display = 'block';
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('setup-2fa-screen').style.display = 'flex';
+        try {
+            const res = await fetch(`${API}/auth/setup-2fa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_setupPendingToken}` }
+            });
+            const data = await res.json();
+            if (!res.ok) { alert(data.detail || 'שגיאה'); showLoginScreen(); return; }
+            _setupPendingToken = data.setup_token;
+            const qrEl = document.getElementById('emp-qrcode');
+            qrEl.innerHTML = '';
+            new QRCode(qrEl, { text: data.provisioning_uri, width: 180, height: 180,
+                colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+            document.getElementById('emp-2fa-secret').textContent = data.secret;
+            document.getElementById('emp-setup-code').value = '';
+            document.getElementById('emp-setup-error').textContent = '';
+            document.getElementById('emp-setup-loading').style.display = 'none';
+            document.getElementById('emp-setup-qr').style.display = 'block';
+            setTimeout(() => document.getElementById('emp-setup-code').focus(), 200);
+        } catch { alert('שגיאת תקשורת'); showLoginScreen(); }
+    }
+
+    async function confirmEmpSetup2FA() {
+        const code = document.getElementById('emp-setup-code').value.trim();
+        const errEl = document.getElementById('emp-setup-error');
+        if (!code || code.length !== 6) { errEl.textContent = 'הכנס קוד בן 6 ספרות'; return; }
+        const btn = document.getElementById('btn-emp-setup-confirm');
+        btn.disabled = true; btn.textContent = '⏳ מאמת...'; errEl.textContent = '';
+        try {
+            const res = await fetch(`${API}/auth/verify-2fa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pending_token: _setupPendingToken, code })
+            });
+            const data = await res.json();
+            if (!res.ok) { errEl.textContent = data.detail || 'קוד שגוי';
+                document.getElementById('emp-setup-code').value = '';
+                document.getElementById('emp-setup-code').focus(); return; }
+            passcode = _pendingPasscode;
+            sessionStorage.setItem('emp_passcode', passcode);
+            document.getElementById('setup-2fa-screen').style.display = 'none';
+            showPortal();
+        } catch { errEl.textContent = 'שגיאת תקשורת'; }
+        finally { btn.disabled = false; btn.textContent = '✅ אמת וכנס'; }
+    }
+
+    async function submitEmpTOTP() {
+        const code = document.getElementById('emp-totp-code').value.trim();
+        const errEl = document.getElementById('emp-totp-error');
+        if (!code || code.length !== 6) { errEl.textContent = 'הכנס קוד בן 6 ספרות'; return; }
+        const btn = document.getElementById('btn-emp-totp');
+        btn.disabled = true; btn.textContent = '⏳ מאמת...'; errEl.textContent = '';
+        try {
+            const res = await fetch(`${API}/auth/verify-2fa`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pending_token: _pendingToken, code })
+            });
+            const data = await res.json();
+            if (!res.ok) { errEl.textContent = data.detail || 'קוד שגוי';
+                document.getElementById('emp-totp-code').value = '';
+                document.getElementById('emp-totp-code').focus(); return; }
+            passcode = _pendingPasscode;
+            sessionStorage.setItem('emp_passcode', passcode);
+            document.getElementById('verify-2fa-screen').style.display = 'none';
+            showPortal();
+        } catch { errEl.textContent = 'שגיאת תקשורת'; }
+        finally { btn.disabled = false; btn.textContent = 'כניסה'; }
+    }
+
+    function showLoginScreen() {
+        document.getElementById('setup-2fa-screen').style.display = 'none';
+        document.getElementById('verify-2fa-screen').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
     }
 
     function handleLogout() {
         passcode = ''; userData = null; businessId = null;
+        _setupPendingToken = null; _pendingToken = null; _pendingPasscode = null;
         sessionStorage.removeItem('emp_passcode');
         document.getElementById('portal').style.display = 'none';
+        document.getElementById('setup-2fa-screen').style.display = 'none';
+        document.getElementById('verify-2fa-screen').style.display = 'none';
         document.getElementById('login-screen').style.display = 'flex';
         document.getElementById('login-passcode').value = '';
     }
