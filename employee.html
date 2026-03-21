@@ -155,7 +155,7 @@
             </button>
             <button onclick="showTab('schedule')" id="ptab-schedule"
                     class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                📅 לוח
+                📅 סידור
             </button>
             <button onclick="showTab('leave')" id="ptab-leave"
                     class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
@@ -164,10 +164,6 @@
             <button onclick="showTab('ai')" id="ptab-ai"
                     class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
                 🤖 AI
-            </button>
-            <button onclick="showTab('my-roster')" id="ptab-my-roster"
-                    class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                📋 סידור
             </button>
         </div>
 
@@ -178,11 +174,14 @@
             </div>
         </div>
 
-        <!-- תוכן: לוח זמנים -->
+        <!-- תוכן: סידור שבועי -->
         <div id="tab-schedule" class="tab-content">
-            <div id="schedule-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-6">טוען...</p>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3 flex justify-between items-center">
+                <button onclick="rosterPrev()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">→ הקודם</button>
+                <span id="my-roster-label" class="font-bold text-slate-700 text-sm"></span>
+                <button onclick="rosterNext()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">← הבא</button>
             </div>
+            <div id="my-roster-grid" class="space-y-2"></div>
         </div>
 
         <!-- תוכן: היעדרות -->
@@ -222,15 +221,6 @@
             </div>
         </div>
 
-        <!-- תוכן: סידור שלי -->
-        <div id="tab-my-roster" class="tab-content">
-            <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3 flex justify-between items-center">
-                <button onclick="rosterPrev()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">→ הקודם</button>
-                <span id="my-roster-label" class="font-bold text-slate-700 text-sm"></span>
-                <button onclick="rosterNext()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">← הבא</button>
-            </div>
-            <div id="my-roster-grid" class="space-y-2"></div>
-        </div>
 
         <!-- תוכן: AI -->
         <div id="tab-ai" class="tab-content">
@@ -489,9 +479,8 @@
         });
         document.getElementById(`tab-${tab}`).classList.add('active');
         if (tab === 'shifts') loadMyShifts();
-        else if (tab === 'schedule') loadMySchedule();
+        else if (tab === 'schedule') loadMyRoster();
         else if (tab === 'leave') loadMyLeave();
-        else if (tab === 'my-roster') loadMyRoster();
     }
 
     // ==================== AI צ'אט ====================
@@ -558,33 +547,6 @@
         } catch (e) { console.error(e); }
     }
 
-    // ==================== לוח זמנים ====================
-    async function loadMySchedule() {
-        if (!businessId) return;
-        try {
-            const from = new Date().toISOString().slice(0, 19);
-            const to = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 19);
-            const res = await fetch(`${API}/schedule/${businessId}?from_date=${from}&to_date=${to}&user_id=${userData?.id}`);
-            const shifts = await res.json();
-            const container = document.getElementById('schedule-list');
-            if (!shifts.length) {
-                container.innerHTML = '<p class="text-slate-400 text-center py-6">אין משמרות מתוזמנות ב-14 הימים הקרובים.</p>';
-                return;
-            }
-            container.innerHTML = shifts.map(s => `
-                <div class="bg-white rounded-xl border border-slate-200 p-4 flex justify-between items-center">
-                    <div>
-                        <p class="font-bold text-slate-700">${formatDate(s.start_time)}</p>
-                        <p class="text-sm text-slate-500">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</p>
-                        ${s.notes ? `<p class="text-xs text-slate-400 mt-1">${escapeHtml(s.notes)}</p>` : ''}
-                    </div>
-                    <span class="bg-purple-100 text-purple-700 font-bold px-3 py-1 rounded-full text-sm">
-                        ${calcHours(s.start_time, s.end_time)} ש׳
-                    </span>
-                </div>
-            `).join('');
-        } catch (e) { console.error(e); }
-    }
 
     // ==================== היעדרויות ====================
     async function loadMyLeave() {

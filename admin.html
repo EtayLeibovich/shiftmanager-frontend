@@ -2023,9 +2023,17 @@
         document.getElementById('roster-week-label').textContent =
             `${rosterWeekStart.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})} – ${end.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}`;
 
-        const res = await apiFetch(`/roster/${businessId}?week_start=${weekStr}`);
+        const [res, prefRes] = await Promise.all([
+            apiFetch(`/roster/${businessId}?week_start=${weekStr}`),
+            apiFetch(`/roster/preferences/${businessId}?week_start=${weekStr}`)
+        ]);
         if (!res.ok) return;
         const data = await res.json();
+        const prefs = prefRes.ok ? await prefRes.json() : [];
+        // Build preference lookup: {userId_day: preference}
+        const prefMap = {};
+        prefs.forEach(p => { prefMap[`${p.user_id}_${p.day}`] = p.preference; });
+        const prefLabel = { morning: '🌅 בוקר', evening: '🌆 ערב', double: '🔄 כפולה' };
         rosterData = {};
 
         // Build header
@@ -2048,6 +2056,10 @@
                 ${emp.days.map((shift,d) => {
                     const s = shift || 'off';
                     const st = SHIFT_STYLES[s];
+                    const pref = prefMap[`${emp.id}_${d}`];
+                    const prefBadge = (s === 'off' && pref)
+                        ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;font-weight:600;">${prefLabel[pref] || pref}</div>`
+                        : '';
                     return `<td style="padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">
                         <div onclick="cycleShift(${emp.id},${d},this)"
                              data-uid="${emp.id}" data-day="${d}" data-shift="${s}"
@@ -2056,6 +2068,7 @@
                                     font-weight:700;transition:all 0.15s;user-select:none;">
                             ${st.label}
                         </div>
+                        ${prefBadge}
                     </td>`;
                 }).join('')}
             </tr>`;
