@@ -2048,19 +2048,30 @@
         </tr>`;
 
         // Build body
+        const POSITIONS = ['', 'מטבח', 'פס', 'גריל'];
         const body = document.getElementById('roster-body');
         body.innerHTML = data.employees.map(emp => {
-            emp.days.forEach((s,d) => { rosterData[rosterKey(emp.id, d)] = s || 'off'; });
+            emp.days.forEach((item, d) => {
+                rosterData[rosterKey(emp.id, d)] = {
+                    shift_type: item.shift_type || 'off',
+                    position: item.position || '',
+                    note: item.note || ''
+                };
+            });
             return `<tr>
-                <td style="padding:8px 14px;color:#e2e8f0;font-weight:700;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);">${escapeHtml(emp.name)}</td>
-                ${emp.days.map((shift,d) => {
-                    const s = shift || 'off';
+                <td style="padding:8px 14px;color:#e2e8f0;font-weight:700;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);white-space:nowrap;">${escapeHtml(emp.name)}</td>
+                ${emp.days.map((item, d) => {
+                    const s = item.shift_type || 'off';
                     const st = SHIFT_STYLES[s];
                     const pref = prefMap[`${emp.id}_${d}`];
                     const prefBadge = (s === 'off' && pref)
                         ? `<div style="font-size:10px;color:#60a5fa;margin-top:3px;font-weight:600;">${prefLabel[pref] || pref}</div>`
                         : '';
-                    return `<td style="padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">
+                    const extrasDisplay = s === 'off' ? 'none' : 'block';
+                    const posOpts = POSITIONS.map(p =>
+                        `<option value="${p}" ${item.position === p ? 'selected' : ''}>${p || 'עמדה'}</option>`
+                    ).join('');
+                    return `<td style="padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;vertical-align:top;">
                         <div onclick="cycleShift(${emp.id},${d},this)"
                              data-uid="${emp.id}" data-day="${d}" data-shift="${s}"
                              style="background:${st.bg};border:1px solid ${st.border};color:${st.color};
@@ -2069,6 +2080,17 @@
                             ${st.label}
                         </div>
                         ${prefBadge}
+                        <div class="shift-extras" style="display:${extrasDisplay};margin-top:4px;">
+                            <select onchange="updatePosition(${emp.id},${d},this)"
+                                style="width:100%;font-size:11px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);
+                                       background:#1e293b;color:#e2e8f0;padding:3px 4px;margin-bottom:3px;">
+                                ${posOpts}
+                            </select>
+                            <input type="text" placeholder="הערה..." value="${escapeHtml(item.note || '')}"
+                                onchange="updateNote(${emp.id},${d},this)"
+                                style="width:100%;font-size:11px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);
+                                       background:#1e293b;color:#e2e8f0;padding:3px 4px;box-sizing:border-box;">
+                        </div>
                     </td>`;
                 }).join('')}
             </tr>`;
@@ -2083,21 +2105,39 @@
         const cur = el.dataset.shift;
         const next = order[(order.indexOf(cur) + 1) % order.length];
         el.dataset.shift = next;
-        rosterData[rosterKey(userId, day)] = next;
+        if (!rosterData[rosterKey(userId, day)]) rosterData[rosterKey(userId, day)] = {};
+        rosterData[rosterKey(userId, day)].shift_type = next;
         const st = SHIFT_STYLES[next];
         el.style.background = st.bg;
         el.style.borderColor = st.border;
         el.style.color = st.color;
         el.textContent = st.label;
+        const extras = el.parentElement.querySelector('.shift-extras');
+        if (extras) extras.style.display = next === 'off' ? 'none' : 'block';
+    }
+
+    function updatePosition(userId, day, sel) {
+        if (!rosterData[rosterKey(userId, day)]) rosterData[rosterKey(userId, day)] = {};
+        rosterData[rosterKey(userId, day)].position = sel.value;
+    }
+
+    function updateNote(userId, day, inp) {
+        if (!rosterData[rosterKey(userId, day)]) rosterData[rosterKey(userId, day)] = {};
+        rosterData[rosterKey(userId, day)].note = inp.value;
     }
 
     async function saveRoster() {
         const btn = document.getElementById('btn-save-roster');
         btn.disabled = true; btn.textContent = '⏳ שומר...';
         const weekStr = rosterWeekStart.toISOString().slice(0,10);
-        const entries = Object.entries(rosterData).map(([key, shift_type]) => {
+        const entries = Object.entries(rosterData).map(([key, val]) => {
             const [user_id, day] = key.split('_');
-            return { user_id: parseInt(user_id), day: parseInt(day), shift_type };
+            return {
+                user_id: parseInt(user_id), day: parseInt(day),
+                shift_type: val.shift_type || 'off',
+                position: val.position || '',
+                note: val.note || ''
+            };
         });
         const res = await apiFetch(`/roster/${businessId}`, {
             method: 'POST',
