@@ -320,6 +320,9 @@
             <div class="sidebar-link" id="nav-branches" onclick="switchTab('branches')">
                 <span>🏢</span><span>סניפים</span>
             </div>
+            <div class="sidebar-link" id="nav-roster" onclick="switchTab('roster')">
+                <span>📋</span><span>סידור עבודה</span>
+            </div>
             <div class="sidebar-link" id="nav-ai" onclick="switchTab('ai')">
                 <span>🤖</span><span>עוזר AI</span>
             </div>
@@ -625,6 +628,35 @@
                     <button onclick="openBranchModal()" class="btn-primary">+ הוסף סניף</button>
                 </div>
                 <div id="branches-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;"></div>
+            </section>
+
+            <!-- ========== ROSTER ========== -->
+            <section id="tab-roster" class="tab-section">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                    <h2 style="font-size:22px; font-weight:700; color:white;">📋 סידור עבודה שבועי</h2>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <button onclick="rosterPrevWeek()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;">→ הקודם</button>
+                        <span id="roster-week-label" style="color:#e2e8f0;font-weight:700;font-size:14px;"></span>
+                        <button onclick="rosterNextWeek()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;">← הבא</button>
+                        <button onclick="saveRoster()" id="btn-save-roster" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-weight:700;">💾 שמור</button>
+                    </div>
+                </div>
+
+                <!-- אגדה -->
+                <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+                    <span style="background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">🌅 בוקר 10:30–18:00</span>
+                    <span style="background:rgba(139,92,246,0.2);color:#c4b5fd;border:1px solid rgba(139,92,246,0.3);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">🌆 ערב 18:00–23:00</span>
+                    <span style="background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.3);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">🔄 כפולה 10:30–23:00</span>
+                    <span style="background:rgba(100,116,139,0.2);color:#94a3b8;border:1px solid rgba(100,116,139,0.3);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;">⬜ חופש</span>
+                </div>
+
+                <div style="overflow-x:auto;">
+                    <table id="roster-table" style="width:100%;border-collapse:collapse;min-width:700px;">
+                        <thead id="roster-head"></thead>
+                        <tbody id="roster-body"></tbody>
+                    </table>
+                </div>
+                <p id="roster-msg" style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;display:none;">טוען...</p>
             </section>
 
             <!-- ========== AI ========== -->
@@ -1052,7 +1084,7 @@
             dashboard: 'דשבורד', employees: 'ניהול עובדים', schedule: 'תזמון משמרות',
             leave: 'בקשות היעדרות', shifts: 'היסטוריית משמרות', reports: 'דוחות ושכר',
             branches: 'ניהול סניפים', ai: 'עוזר AI', approvals: 'אישור עובדים חדשים',
-            'manage-shifts': 'ניהול משמרות ידני'
+            'manage-shifts': 'ניהול משמרות ידני', roster: 'סידור עבודה שבועי'
         };
         document.getElementById('page-title').textContent = titles[tab] || tab;
         closeSidebar(); // auto-close sidebar on mobile after nav click
@@ -1069,6 +1101,7 @@
         else if (currentTab === 'branches') loadBranches();
         else if (currentTab === 'approvals') { loadApprovals(); loadJoinCode(); }
         else if (currentTab === 'manage-shifts') loadManageShifts();
+        else if (currentTab === 'roster') loadRoster();
     }
 
     function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -1961,6 +1994,104 @@
     function formatDateTime(dt) {
         if (!dt) return '-';
         return new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ==================== ROSTER ====================
+    const SHIFT_STYLES = {
+        morning: { bg: 'rgba(59,130,246,0.25)', border: 'rgba(59,130,246,0.5)', color: '#93c5fd', label: '🌅 בוקר' },
+        evening: { bg: 'rgba(139,92,246,0.25)', border: 'rgba(139,92,246,0.5)', color: '#c4b5fd', label: '🌆 ערב' },
+        double:  { bg: 'rgba(245,158,11,0.25)', border: 'rgba(245,158,11,0.5)', color: '#fcd34d', label: '🔄 כפולה' },
+        off:     { bg: 'rgba(30,41,59,0.4)',    border: 'rgba(100,116,139,0.2)', color: '#475569', label: '⬜' },
+    };
+    const DAY_NAMES = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+    let rosterWeekStart = getSunday(new Date());
+    let rosterData = {}; // {userId_day: shiftType}
+
+    function getSunday(d) {
+        const day = new Date(d);
+        day.setDate(day.getDate() - day.getDay());
+        day.setHours(0,0,0,0);
+        return day;
+    }
+    function rosterPrevWeek() { rosterWeekStart = new Date(rosterWeekStart.getTime() - 7*86400000); loadRoster(); }
+    function rosterNextWeek() { rosterWeekStart = new Date(rosterWeekStart.getTime() + 7*86400000); loadRoster(); }
+    function rosterKey(userId, day) { return `${userId}_${day}`; }
+
+    async function loadRoster() {
+        const weekStr = rosterWeekStart.toISOString().slice(0,10);
+        const end = new Date(rosterWeekStart.getTime() + 6*86400000);
+        document.getElementById('roster-week-label').textContent =
+            `${rosterWeekStart.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})} – ${end.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}`;
+
+        const res = await apiFetch(`/roster/${businessId}?week_start=${weekStr}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        rosterData = {};
+
+        // Build header
+        const head = document.getElementById('roster-head');
+        head.innerHTML = `<tr>
+            <th style="padding:10px 14px;text-align:right;color:#94a3b8;font-size:13px;font-weight:700;border-bottom:1px solid rgba(255,255,255,0.07);min-width:120px;">עובד</th>
+            ${DAY_NAMES.map((d,i) => {
+                const date = new Date(rosterWeekStart.getTime() + i*86400000);
+                const dateStr = date.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
+                return `<th style="padding:10px 8px;text-align:center;color:#94a3b8;font-size:12px;font-weight:700;border-bottom:1px solid rgba(255,255,255,0.07);min-width:100px;">${d}<br><span style="color:#475569;font-weight:400;">${dateStr}</span></th>`;
+            }).join('')}
+        </tr>`;
+
+        // Build body
+        const body = document.getElementById('roster-body');
+        body.innerHTML = data.employees.map(emp => {
+            emp.days.forEach((s,d) => { rosterData[rosterKey(emp.id, d)] = s || 'off'; });
+            return `<tr>
+                <td style="padding:8px 14px;color:#e2e8f0;font-weight:700;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04);">${escapeHtml(emp.name)}</td>
+                ${emp.days.map((shift,d) => {
+                    const s = shift || 'off';
+                    const st = SHIFT_STYLES[s];
+                    return `<td style="padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center;">
+                        <div onclick="cycleShift(${emp.id},${d},this)"
+                             data-uid="${emp.id}" data-day="${d}" data-shift="${s}"
+                             style="background:${st.bg};border:1px solid ${st.border};color:${st.color};
+                                    padding:6px 4px;border-radius:8px;cursor:pointer;font-size:12px;
+                                    font-weight:700;transition:all 0.15s;user-select:none;">
+                            ${st.label}
+                        </div>
+                    </td>`;
+                }).join('')}
+            </tr>`;
+        }).join('');
+
+        if (!data.employees.length)
+            document.getElementById('roster-msg').style.display = 'block';
+    }
+
+    function cycleShift(userId, day, el) {
+        const order = ['off','morning','evening','double'];
+        const cur = el.dataset.shift;
+        const next = order[(order.indexOf(cur) + 1) % order.length];
+        el.dataset.shift = next;
+        rosterData[rosterKey(userId, day)] = next;
+        const st = SHIFT_STYLES[next];
+        el.style.background = st.bg;
+        el.style.borderColor = st.border;
+        el.style.color = st.color;
+        el.textContent = st.label;
+    }
+
+    async function saveRoster() {
+        const btn = document.getElementById('btn-save-roster');
+        btn.disabled = true; btn.textContent = '⏳ שומר...';
+        const weekStr = rosterWeekStart.toISOString().slice(0,10);
+        const entries = Object.entries(rosterData).map(([key, shift_type]) => {
+            const [user_id, day] = key.split('_');
+            return { user_id: parseInt(user_id), day: parseInt(day), shift_type };
+        });
+        const res = await apiFetch(`/roster/${businessId}`, {
+            method: 'POST',
+            body: JSON.stringify({ week_start: weekStr, entries })
+        });
+        btn.disabled = false; btn.textContent = '💾 שמור';
+        if (res.ok) { btn.textContent = '✅ נשמר!'; setTimeout(() => btn.textContent = '💾 שמור', 2000); }
     }
 
 </script>

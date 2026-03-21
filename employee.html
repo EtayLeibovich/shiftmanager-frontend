@@ -165,6 +165,10 @@
                     class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
                 🤖 AI
             </button>
+            <button onclick="showTab('my-roster')" id="ptab-my-roster"
+                    class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
+                📋 סידור
+            </button>
         </div>
 
         <!-- תוכן: המשמרות שלי -->
@@ -216,6 +220,16 @@
             <div id="leave-history" class="space-y-2">
                 <p class="text-slate-400 text-center py-4">טוען...</p>
             </div>
+        </div>
+
+        <!-- תוכן: סידור שלי -->
+        <div id="tab-my-roster" class="tab-content">
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3 flex justify-between items-center">
+                <button onclick="rosterPrev()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">→ הקודם</button>
+                <span id="my-roster-label" class="font-bold text-slate-700 text-sm"></span>
+                <button onclick="rosterNext()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">← הבא</button>
+            </div>
+            <div id="my-roster-grid" class="space-y-2"></div>
         </div>
 
         <!-- תוכן: AI -->
@@ -465,7 +479,7 @@
     // ==================== טאבים ====================
     function showTab(tab) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        ['shifts', 'schedule', 'leave', 'ai'].forEach(t => {
+        ['shifts', 'schedule', 'leave', 'ai', 'my-roster'].forEach(t => {
             const btn = document.getElementById(`ptab-${t}`);
             if (t === tab) {
                 btn.className = 'flex-1 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white transition-all';
@@ -477,6 +491,7 @@
         if (tab === 'shifts') loadMyShifts();
         else if (tab === 'schedule') loadMySchedule();
         else if (tab === 'leave') loadMyLeave();
+        else if (tab === 'my-roster') loadMyRoster();
     }
 
     // ==================== AI צ'אט ====================
@@ -667,6 +682,62 @@
     function calcHours(start, end) {
         if (!start || !end) return '?';
         return Math.round(((new Date(end) - new Date(start)) / 3600000) * 10) / 10;
+    }
+
+    // ==================== סידור שלי ====================
+    let myRosterWeek = getThisSunday(new Date());
+
+    function getThisSunday(d) {
+        const day = new Date(d);
+        day.setDate(day.getDate() - day.getDay());
+        day.setHours(0,0,0,0);
+        return day;
+    }
+    function rosterPrev() { myRosterWeek = new Date(myRosterWeek.getTime() - 7*86400000); loadMyRoster(); }
+    function rosterNext() { myRosterWeek = new Date(myRosterWeek.getTime() + 7*86400000); loadMyRoster(); }
+
+    async function loadMyRoster() {
+        const weekStr = myRosterWeek.toISOString().slice(0,10);
+        const end = new Date(myRosterWeek.getTime() + 6*86400000);
+        document.getElementById('my-roster-label').textContent =
+            `${myRosterWeek.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})} – ${end.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}`;
+
+        const grid = document.getElementById('my-roster-grid');
+        grid.innerHTML = '<p class="text-slate-400 text-center py-4">טוען...</p>';
+        try {
+            const res = await fetchWithRetry(`${API}/roster/my-week/${passcode}?week_start=${weekStr}`);
+            if (!res.ok) { grid.innerHTML = '<p class="text-slate-400 text-center py-4">אין נתונים</p>'; return; }
+            const data = await res.json();
+            const shiftColors = {
+                morning: 'bg-blue-50 border-blue-200 text-blue-700',
+                evening: 'bg-purple-50 border-purple-200 text-purple-700',
+                double:  'bg-amber-50 border-amber-200 text-amber-700',
+                off:     'bg-slate-50 border-slate-200 text-slate-400'
+            };
+            const shiftLabels = {
+                morning: '🌅 בוקר · 10:30–18:00',
+                evening: '🌆 ערב · 18:00–23:00',
+                double:  '🔄 כפולה · 10:30–23:00',
+                off:     '⬜ חופש'
+            };
+            const today = new Date().toISOString().slice(0,10);
+            grid.innerHTML = data.days.map((d, i) => {
+                const dayDate = new Date(myRosterWeek.getTime() + i*86400000);
+                const dateStr = dayDate.toISOString().slice(0,10);
+                const isToday = dateStr === today;
+                const colorClass = shiftColors[d.shift_type] || shiftColors.off;
+                const ring = isToday ? 'ring-2 ring-blue-400' : '';
+                return `<div class="border rounded-2xl p-4 flex justify-between items-center ${colorClass} ${ring}">
+                    <div>
+                        <p class="font-black text-lg">${d.day_name}</p>
+                        <p class="text-xs opacity-70">${dayDate.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-sm">${shiftLabels[d.shift_type]}</p>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch { grid.innerHTML = '<p class="text-rose-400 text-center py-4">שגיאת תקשורת</p>'; }
     }
 </script>
 </body>
