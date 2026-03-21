@@ -769,9 +769,11 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ passcode, week_start: weekStr, day, preference })
             });
-            if (res.ok) loadMyRoster();
-            else alert('שגיאה בשמירת ההעדפה');
-        } catch { alert('שגיאת תקשורת'); btn.disabled = false; }
+            if (res.ok) { loadMyRoster(); return; }
+            const errData = await res.json().catch(() => ({}));
+            alert('שגיאה ' + res.status + ': ' + (errData.detail || JSON.stringify(errData)));
+            btn.disabled = false;
+        } catch(e) { alert('שגיאת תקשורת: ' + e.message); btn.disabled = false; }
     }
 </script>
 </body>
