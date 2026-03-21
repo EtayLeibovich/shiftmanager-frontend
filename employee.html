@@ -469,8 +469,9 @@
     // ==================== טאבים ====================
     function showTab(tab) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-        ['shifts', 'schedule', 'leave', 'ai', 'my-roster'].forEach(t => {
+        ['shifts', 'schedule', 'leave', 'ai'].forEach(t => {
             const btn = document.getElementById(`ptab-${t}`);
+            if (!btn) return;
             if (t === tab) {
                 btn.className = 'flex-1 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white transition-all';
             } else {
