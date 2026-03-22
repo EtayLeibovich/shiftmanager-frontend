@@ -297,9 +297,6 @@
             <div class="sidebar-link" id="nav-employees" onclick="switchTab('employees')">
                 <span>👥</span><span>עובדים</span>
             </div>
-            <div class="sidebar-link" id="nav-schedule" onclick="switchTab('schedule')">
-                <span>📅</span><span>תזמון משמרות</span>
-            </div>
             <div class="sidebar-link" id="nav-leave" onclick="switchTab('leave')">
                 <span>🏖️</span><span>בקשות היעדרות</span>
                 <span id="leave-badge" style="margin-right: auto; background: #f43f5e; color: white; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 20px; display: none;">0</span>
@@ -492,19 +489,6 @@
                 </div>
             </section>
 
-            <!-- ========== SCHEDULE ========== -->
-            <section id="tab-schedule" class="tab-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <button onclick="prevWeek()" class="btn-ghost" style="padding: 8px 14px;">→</button>
-                        <h2 id="week-label" style="font-size: 17px; font-weight: 700; color: white;">השבוע</h2>
-                        <button onclick="nextWeek()" class="btn-ghost" style="padding: 8px 14px;">←</button>
-                    </div>
-                    <button onclick="openScheduleModal()" class="btn-primary">+ תזמן משמרת</button>
-                </div>
-                <div id="schedule-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; overflow-x: auto;"></div>
-            </section>
-
             <!-- ========== LEAVE REQUESTS ========== -->
             <section id="tab-leave" class="tab-section">
                 <h2 style="font-size: 22px; font-weight: 700; color: white; margin-bottom: 20px;">בקשות היעדרות</h2>
@@ -637,7 +621,12 @@
                     <div style="display:flex; align-items:center; gap:10px;">
                         <button onclick="rosterPrevWeek()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;">→ הקודם</button>
                         <span id="roster-week-label" style="color:#e2e8f0;font-weight:700;font-size:14px;"></span>
+                        <span id="roster-lock-msg" style="display:none;color:#f87171;font-size:13px;font-weight:700;">🔒 שבוע עבר — לא ניתן לערוך</span>
                         <button onclick="rosterNextWeek()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:700;">← הבא</button>
+                        <div style="display:flex;gap:6px;">
+                            <button onclick="setRosterMode('edit')" id="btn-roster-edit" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">✏️ עריכה</button>
+                            <button onclick="setRosterMode('view')" id="btn-roster-view" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">👁 תצוגה</button>
+                        </div>
                         <button onclick="saveRoster()" id="btn-save-roster" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-weight:700;">💾 שמור</button>
                     </div>
                 </div>
@@ -657,6 +646,7 @@
                     </table>
                 </div>
                 <p id="roster-msg" style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;display:none;">טוען...</p>
+                <div id="roster-view-panel" style="display:none;"></div>
             </section>
 
             <!-- ========== AI ========== -->
@@ -721,35 +711,6 @@
         <div style="display: flex; gap: 10px; margin-top: 20px;">
             <button onclick="saveEmployee()" class="btn-primary" style="flex: 1;">שמור</button>
             <button onclick="closeModal('employee-modal')" class="btn-ghost" style="flex: 1;">ביטול</button>
-        </div>
-    </div>
-</div>
-
-<!-- Schedule Modal -->
-<div id="schedule-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('schedule-modal')">
-    <div class="modal-box" style="padding: 32px; width: 100%; max-width: 420px; margin: 16px;">
-        <h3 style="font-size: 18px; font-weight: 700; color: white; margin-bottom: 20px;">תזמן משמרת</h3>
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-            <div>
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">עובד *</label>
-                <select id="sched-worker" class="input-dark"></select>
-            </div>
-            <div>
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">שעת התחלה *</label>
-                <input type="datetime-local" id="sched-start" class="input-dark">
-            </div>
-            <div>
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">שעת סיום *</label>
-                <input type="datetime-local" id="sched-end" class="input-dark">
-            </div>
-            <div>
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">הערות</label>
-                <input type="text" id="sched-notes" class="input-dark">
-            </div>
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button onclick="saveScheduledShift()" class="btn-primary" style="flex: 1;">שמור</button>
-            <button onclick="closeModal('schedule-modal')" class="btn-ghost" style="flex: 1;">ביטול</button>
         </div>
     </div>
 </div>
@@ -860,7 +821,6 @@
     let managerName = localStorage.getItem('sm_manager_name') || '';
     let currentTab = 'dashboard';
     let employees = [];
-    let scheduleWeekStart = getMonday(new Date());
     let notifInterval = null;
 
     // ==================== INIT ====================
@@ -1081,7 +1041,7 @@
         document.getElementById(`nav-${tab}`).classList.add('active');
         currentTab = tab;
         const titles = {
-            dashboard: 'דשבורד', employees: 'ניהול עובדים', schedule: 'תזמון משמרות',
+            dashboard: 'דשבורד', employees: 'ניהול עובדים',
             leave: 'בקשות היעדרות', shifts: 'היסטוריית משמרות', reports: 'דוחות ושכר',
             branches: 'ניהול סניפים', ai: 'עוזר AI', approvals: 'אישור עובדים חדשים',
             'manage-shifts': 'ניהול משמרות ידני', roster: 'סידור עבודה שבועי'
@@ -1094,7 +1054,6 @@
     function refreshCurrentTab() {
         if (currentTab === 'dashboard') loadDashboard();
         else if (currentTab === 'employees') loadEmployees();
-        else if (currentTab === 'schedule') loadSchedule();
         else if (currentTab === 'leave') loadLeave();
         else if (currentTab === 'shifts') { loadAllShifts(); loadEmployeeSummary(); populateWorkerFilter(); }
         else if (currentTab === 'reports') {}
@@ -1343,11 +1302,6 @@
             if (sel) {
                 sel.innerHTML = '<option value="">כל העובדים</option>' + employees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
             }
-            // And schedule worker select
-            const sworker = document.getElementById('sched-worker');
-            if (sworker) {
-                sworker.innerHTML = employees.filter(e => e.is_active).map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
-            }
         } catch (e) { console.error(e); }
     }
 
@@ -1407,83 +1361,6 @@
         if (!confirm('להשבית עובד זה?')) return;
         await apiFetch(`/employees/${id}`, { method: 'DELETE' });
         loadEmployees();
-    }
-
-    // ==================== SCHEDULE ====================
-    function getMonday(d) {
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    }
-
-    function formatDateISO(d) {
-        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    }
-
-    function prevWeek() { scheduleWeekStart = new Date(scheduleWeekStart.getTime() - 7 * 86400000); loadSchedule(); }
-    function nextWeek() { scheduleWeekStart = new Date(scheduleWeekStart.getTime() + 7 * 86400000); loadSchedule(); }
-
-    async function loadSchedule() {
-        const from = new Date(scheduleWeekStart);
-        const to = new Date(scheduleWeekStart.getTime() + 7 * 86400000 - 1);
-        document.getElementById('week-label').textContent = `${formatDateISO(from)} — ${formatDateISO(to)}`;
-
-        try {
-            const res = await apiFetch(`/schedule/${businessId}?from_date=${from.toISOString().slice(0,19)}&to_date=${to.toISOString().slice(0,19)}`);
-            const shifts = await res.json();
-            const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-            const grid = document.getElementById('schedule-grid');
-            const dayMap = {};
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(scheduleWeekStart.getTime() + i * 86400000);
-                dayMap[formatDateISO(d)] = { label: `${days[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`, shifts: [] };
-            }
-            shifts.forEach(s => {
-                const day = formatDateISO(new Date(s.start_time));
-                if (dayMap[day]) dayMap[day].shifts.push(s);
-            });
-            grid.innerHTML = Object.entries(dayMap).map(([date, info]) => `
-                <div style="background: var(--surface2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; min-height: 150px;">
-                    <p style="font-weight: 700; font-size: 12px; color: #64748b; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px; margin-bottom: 8px;">${info.label}</p>
-                    ${info.shifts.map(s => `
-                        <div style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 8px; margin-bottom: 6px; font-size: 12px;">
-                            <p style="font-weight: 700; color: #93c5fd;">${escapeHtml(s.full_name)}</p>
-                            <p style="color: #3b82f6;">${formatTime(s.start_time)} - ${formatTime(s.end_time)}</p>
-                            ${s.notes ? `<p style="color: #64748b;">${escapeHtml(s.notes)}</p>` : ''}
-                            <button onclick="deleteScheduledShift(${s.id})" style="color: #f43f5e; font-size: 11px; background: none; border: none; cursor: pointer; margin-top: 4px; font-weight: 700;">× מחק</button>
-                        </div>
-                    `).join('')}
-                </div>
-            `).join('');
-        } catch (e) { console.error(e); }
-    }
-
-    function openScheduleModal() {
-        // Populate worker select
-        const sel = document.getElementById('sched-worker');
-        sel.innerHTML = employees.filter(e => e.is_active !== false).map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
-        openModal('schedule-modal');
-    }
-
-    async function saveScheduledShift() {
-        const body = {
-            user_id: parseInt(document.getElementById('sched-worker').value),
-            business_id: parseInt(businessId),
-            start_time: document.getElementById('sched-start').value,
-            end_time: document.getElementById('sched-end').value,
-            notes: document.getElementById('sched-notes').value,
-        };
-        if (!body.start_time || !body.end_time) { alert('בחר שעות'); return; }
-        try {
-            const res = await apiFetch('/schedule/', { method: 'POST', body: JSON.stringify(body) });
-            if (res.ok) { closeModal('schedule-modal'); loadSchedule(); }
-        } catch (e) {}
-    }
-
-    async function deleteScheduledShift(id) {
-        if (!confirm('למחוק משמרת מתוזמנת זו?')) return;
-        await apiFetch(`/schedule/${id}`, { method: 'DELETE' });
-        loadSchedule();
     }
 
     // ==================== LEAVE ====================
@@ -2006,6 +1883,8 @@
     const DAY_NAMES = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
     let rosterWeekStart = getSunday(new Date());
     let rosterData = {}; // {userId_day: shiftType}
+    let rosterViewData = null;
+    let rosterLocked = false;
 
     function getSunday(d) {
         const day = new Date(d);
@@ -2035,6 +1914,13 @@
         prefs.forEach(p => { prefMap[`${p.user_id}_${p.day}`] = p.preference; });
         const prefLabel = { morning: '🌅 בוקר', evening: '🌆 ערב', double: '🔄 כפולה' };
         rosterData = {};
+        rosterViewData = data;
+
+        const today = new Date(); today.setHours(0,0,0,0);
+        const weekEnd = new Date(rosterWeekStart.getTime() + 7*86400000);
+        rosterLocked = weekEnd <= today;
+        document.getElementById('btn-save-roster').style.display = rosterLocked ? 'none' : '';
+        document.getElementById('roster-lock-msg').style.display = rosterLocked ? '' : 'none';
 
         // Build header
         const head = document.getElementById('roster-head');
@@ -2101,6 +1987,7 @@
     }
 
     function cycleShift(userId, day, el) {
+        if (rosterLocked) return;
         const order = ['off','morning','evening','double'];
         const cur = el.dataset.shift;
         const next = order[(order.indexOf(cur) + 1) % order.length];
@@ -2145,6 +2032,70 @@
         });
         btn.disabled = false; btn.textContent = '💾 שמור';
         if (res.ok) { btn.textContent = '✅ נשמר!'; setTimeout(() => btn.textContent = '💾 שמור', 2000); }
+    }
+
+    function setRosterMode(mode) {
+        const editEl = document.getElementById('roster-table').parentElement;
+        const viewEl = document.getElementById('roster-view-panel');
+        const editBtn = document.getElementById('btn-roster-edit');
+        const viewBtn = document.getElementById('btn-roster-view');
+        if (mode === 'view') {
+            editEl.style.display = 'none';
+            viewEl.style.display = 'block';
+            editBtn.style.background = 'rgba(255,255,255,0.07)';
+            editBtn.style.color = '#94a3b8';
+            editBtn.style.border = '1px solid rgba(255,255,255,0.1)';
+            viewBtn.style.background = 'linear-gradient(135deg,#3b82f6,#8b5cf6)';
+            viewBtn.style.color = 'white';
+            viewBtn.style.border = 'none';
+            if (rosterViewData) renderRosterView(rosterViewData);
+        } else {
+            editEl.style.display = '';
+            viewEl.style.display = 'none';
+            editBtn.style.background = 'linear-gradient(135deg,#3b82f6,#8b5cf6)';
+            editBtn.style.color = 'white';
+            editBtn.style.border = 'none';
+            viewBtn.style.background = 'rgba(255,255,255,0.07)';
+            viewBtn.style.color = '#94a3b8';
+            viewBtn.style.border = '1px solid rgba(255,255,255,0.1)';
+        }
+    }
+
+    function renderRosterView(data) {
+        const container = document.getElementById('roster-view-panel');
+        container.innerHTML = DAY_NAMES.map((dayName, d) => {
+            const date = new Date(rosterWeekStart.getTime() + d * 86400000);
+            const dateStr = date.toLocaleDateString('he-IL', {day:'2-digit', month:'2-digit'});
+            const morningWorkers = data.employees.filter(emp => ['morning','double'].includes(emp.days[d]?.shift_type));
+            const eveningWorkers = data.employees.filter(emp => ['evening','double'].includes(emp.days[d]?.shift_type));
+            if (!morningWorkers.length && !eveningWorkers.length) return '';
+            const renderWorkerRows = (workers) => workers.map(emp => {
+                const pos = emp.days[d]?.position || '';
+                const note = emp.days[d]?.note || '';
+                return `<tr>
+                    <td style="padding:7px 12px;color:#e2e8f0;font-weight:600;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">${escapeHtml(emp.name)}</td>
+                    <td style="padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">${pos ? `<span style="background:rgba(59,130,246,0.2);color:#93c5fd;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px;">${escapeHtml(pos)}</span>` : '<span style="color:#475569;font-size:12px;">—</span>'}</td>
+                    <td style="padding:7px 12px;color:#64748b;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.05);">${escapeHtml(note)}</td>
+                </tr>`;
+            }).join('');
+            const shiftBlock = (label, color, workers) => !workers.length ? '' : `
+                <div style="margin-bottom:12px;">
+                    <div style="color:${color};font-size:12px;font-weight:700;margin-bottom:6px;">${label}</div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr>
+                            <th style="padding:5px 12px;color:#475569;font-size:11px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.07);">שם</th>
+                            <th style="padding:5px 12px;color:#475569;font-size:11px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.07);">עמדה</th>
+                            <th style="padding:5px 12px;color:#475569;font-size:11px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.07);">הערה</th>
+                        </tr></thead>
+                        <tbody>${renderWorkerRows(workers)}</tbody>
+                    </table>
+                </div>`;
+            return `<div style="background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:16px;margin-bottom:12px;">
+                <h3 style="color:white;font-weight:800;font-size:15px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07);">${dayName} · ${dateStr}</h3>
+                ${shiftBlock('🌅 בוקר · 10:30–18:00', '#93c5fd', morningWorkers)}
+                ${shiftBlock('🌆 ערב · 18:00–23:00', '#c4b5fd', eveningWorkers)}
+            </div>`;
+        }).join('');
     }
 
 </script>
