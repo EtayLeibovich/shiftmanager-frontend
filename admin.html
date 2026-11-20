@@ -1655,8 +1655,6 @@
         const box = document.getElementById('ai-response');
         const input = document.getElementById('ai-input');
 
-        const bId = parseInt(businessId) || 1;
-
         // SECURITY: Use escapeHtml on user input before injecting into innerHTML
         box.innerHTML += `<div style="text-align:right;margin:8px 0;color:#93c5fd;"><strong>אתה:</strong> ${escapeHtml(q)}</div>`;
         box.innerHTML += `<div id="ai-thinking" style="color:#6b7280;">🤖 חושב...</div>`;
@@ -1667,11 +1665,9 @@
         aiChatHistory.push({ role: "user", content: q });
 
         try {
-            const res = await fetch(API + "/ai/manager-ask", {
+            const res = await apiFetch("/ai/manager-ask", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    business_id: parseInt(bId),
                     query: q,
                     history: aiChatHistory.slice(0, -1) // שלח היסטוריה ללא ההודעה הנוכחית
                 })
@@ -1687,6 +1683,7 @@
             document.getElementById('ai-thinking')?.remove();
             // SECURITY: escape AI answer then safely restore newlines as <br>
             box.innerHTML += `<div style="margin:8px 0;color:#d1fae5;"><strong>🤖 AI:</strong> ${escapeHtml(answer).replace(/\n/g, '<br>')}</div>`;
+            renderPendingActions(box, data.pending_actions || []);
             box.scrollTop = box.scrollHeight;
         } catch (err) {
             console.error("AI Error:", err);
@@ -1695,7 +1692,53 @@
         }
     }
 
+    // פעולות שהסוכן הציע — מבוצעות רק אחרי לחיצה על "אשר"
+    let aiPendingActions = {};
+    let aiActionSeq = 0;
+
+    function renderPendingActions(box, actions) {
+        actions.forEach(a => {
+            const id = 'ai-action-' + (++aiActionSeq);
+            aiPendingActions[id] = a;
+            box.insertAdjacentHTML('beforeend', `
+                <div id="${id}" style="margin:6px 0;padding:10px 12px;border:1px solid rgba(59,130,246,0.4);border-radius:10px;background:rgba(59,130,246,0.08);display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                    <span style="color:#e2e8f0;font-size:14px;">⚡ ${escapeHtml(a.description)}</span>
+                    <span style="display:flex;gap:6px;flex-shrink:0;">
+                        <button onclick="confirmAIAction('${id}')" style="background:#10b981;color:white;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;">אשר</button>
+                        <button onclick="dismissAIAction('${id}')" style="background:#334155;color:#cbd5e1;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;">בטל</button>
+                    </span>
+                </div>`);
+        });
+    }
+
+    async function confirmAIAction(id) {
+        const a = aiPendingActions[id];
+        const el = document.getElementById(id);
+        if (!a || !el) return;
+        el.querySelectorAll('button').forEach(b => b.disabled = true);
+        try {
+            const res = await apiFetch('/ai/execute-action', {
+                method: 'POST',
+                body: JSON.stringify({ tool: a.tool, args: a.args })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'שגיאה');
+            el.innerHTML = `<span style="color:#10b981;font-size:14px;">✅ בוצע: ${escapeHtml(data.description)}</span>`;
+            aiChatHistory.push({ role: "user", content: `(המנהל אישר ובוצע: ${data.description})` });
+        } catch (e) {
+            el.innerHTML = `<span style="color:#f87171;font-size:14px;">❌ ${escapeHtml(e.message)}</span>`;
+        }
+        delete aiPendingActions[id];
+    }
+
+    function dismissAIAction(id) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<span style="color:#64748b;font-size:14px;">בוטל: ${escapeHtml(aiPendingActions[id]?.description || '')}</span>`;
+        delete aiPendingActions[id];
+    }
+
     function clearAIChat() {
+        aiPendingActions = {};
         aiChatHistory = [];
         document.getElementById('ai-response').innerHTML = '';
     }
