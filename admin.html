@@ -480,7 +480,7 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>שם</th><th>תפקיד</th><th>קוד</th><th>תעריף שעתי</th><th>טלפון</th><th>סטטוס</th><th>פעולות</th>
+                                <th>שם</th><th>תפקיד</th><th>סיסמה</th><th>תעריף שעתי</th><th>טלפון</th><th>סטטוס</th><th>פעולות</th>
                             </tr>
                         </thead>
                         <tbody id="employees-table"></tbody>
@@ -691,8 +691,8 @@
                 </select>
             </div>
             <div>
-                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">קוד אישי *</label>
-                <input type="text" id="emp-passcode" class="input-dark">
+                <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">סיסמה <span id="emp-passcode-hint">*</span></label>
+                <input type="password" id="emp-passcode" class="input-dark" autocomplete="new-password" placeholder="לפחות 4 תווים">
             </div>
             <div>
                 <label style="display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">תעריף שעתי (₪)</label>
@@ -1287,7 +1287,7 @@
                 <tr>
                     <td style="font-weight: 600; color: white;">${escapeHtml(e.full_name)}</td>
                     <td><span class="${e.role === 'manager' ? 'badge-blue' : 'badge-gray'}">${e.role === 'manager' ? 'מנהל' : 'עובד'}</span></td>
-                    <td style="font-family: monospace; color: #64748b;">${escapeHtml(e.passcode)}</td>
+                    <td style="color: #64748b;" title="הסיסמה שמורה מוצפנת ואינה ניתנת לצפייה">🔒 מוצפנת</td>
                     <td style="font-weight: 700; color: #10b981;">₪${e.hourly_rate || 0}</td>
                     <td style="color: #64748b;">${escapeHtml(e.phone) || '-'}</td>
                     <td><span class="${e.is_active ? 'badge-green' : 'badge-rose'}">${e.is_active ? 'פעיל' : 'לא פעיל'}</span></td>
@@ -1310,6 +1310,8 @@
         document.getElementById('emp-name').value = '';
         document.getElementById('emp-role').value = 'worker';
         document.getElementById('emp-passcode').value = '';
+        document.getElementById('emp-passcode').placeholder = id ? 'השאר ריק כדי לא לשנות' : 'לפחות 4 תווים';
+        document.getElementById('emp-passcode-hint').textContent = id ? '(חדשה — אופציונלי)' : '*';
         document.getElementById('emp-rate').value = '';
         document.getElementById('emp-phone').value = '';
         document.getElementById('emp-email').value = '';
@@ -1320,7 +1322,6 @@
             if (emp) {
                 document.getElementById('emp-name').value = emp.full_name;
                 document.getElementById('emp-role').value = emp.role;
-                document.getElementById('emp-passcode').value = emp.passcode;
                 document.getElementById('emp-rate').value = emp.hourly_rate || '';
                 document.getElementById('emp-phone').value = emp.phone || '';
                 document.getElementById('emp-email').value = emp.email || '';
@@ -1334,8 +1335,9 @@
         const name = document.getElementById('emp-name').value.trim();
         const passcode = document.getElementById('emp-passcode').value.trim();
         const err = document.getElementById('emp-error');
-        if (!name) { err.textContent = 'שם חובה'; return; }
-        if (!id && !passcode) { err.textContent = 'קוד אישי חובה'; return; }
+        if (!name) { err.textContent = 'שם מלא חובה'; return; }
+        if (!id && !passcode) { err.textContent = 'סיסמה חובה'; return; }
+        if (passcode && passcode.length < 4) { err.textContent = 'הסיסמה חייבת להכיל לפחות 4 תווים'; return; }
         const body = {
             full_name: name,
             role: document.getElementById('emp-role').value,
@@ -1580,7 +1582,19 @@
         const monthVal = document.getElementById('report-month').value;
         if (!monthVal) { alert('בחר חודש'); return; }
         const [year, month] = monthVal.split('-');
-        window.location.href = `${API}/reports/export/${businessId}?year=${year}&month=${month}`;
+        // SECURITY: the export requires the auth header, so download via fetch + blob
+        try {
+            const res = await apiFetch(`/reports/export/${businessId}?year=${year}&month=${month}`);
+            if (!res.ok) { alert('שגיאה בייצוא הדוח'); return; }
+            const url = URL.createObjectURL(await res.blob());
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `report_${year}_${month}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch { alert('שגיאת תקשורת'); }
     }
 
     // ==================== BRANCHES ====================

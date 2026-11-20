@@ -34,10 +34,10 @@
             </div>
 
             <div>
-                <label class="block text-sm font-bold text-slate-600 mb-1">קוד אישי *</label>
-                <input type="password" id="passcode" placeholder="בחר קוד שתזכור (4-8 ספרות)"
+                <label class="block text-sm font-bold text-slate-600 mb-1">סיסמה *</label>
+                <input type="password" id="passcode" placeholder="לפחות 4 תווים" autocomplete="new-password"
                        class="w-full border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
-                <p class="text-slate-400 text-xs mt-1">הקוד ישמש לכניסה ויציאה ממשמרות</p>
+                <p class="text-slate-400 text-xs mt-1">תתחבר עם השם המלא שלך + הסיסמה — בשעון הנוכחות ובפורטל</p>
             </div>
 
             <div>
@@ -68,7 +68,7 @@
             <p class="text-blue-700 font-bold">📌 מה עכשיו?</p>
             <ul class="text-blue-600 text-sm mt-2 space-y-1">
                 <li>• המנהל יקבל התראה על בקשתך</li>
-                <li>• לאחר האישור תוכל להתחבר עם הקוד שבחרת</li>
+                <li>• לאחר האישור תתחבר עם השם המלא והסיסמה שבחרת</li>
                 <li>• אם לא קיבלת אישור תוך 24 שעות, פנה למנהל</li>
             </ul>
         </div>
@@ -123,8 +123,8 @@
         const err = document.getElementById('error-msg');
 
         if (!joinCode || joinCode.length !== 6) { err.textContent = 'הכנס קוד עסק תקין (6 תווים)'; return; }
-        if (!fullName) { err.textContent = 'הכנס שם מלא'; return; }
-        if (!passcode || passcode.length < 3) { err.textContent = 'בחר קוד אישי (לפחות 3 תווים)'; return; }
+        if (fullName.split(/\s+/).length < 2) { err.textContent = 'הכנס שם מלא (שם פרטי ושם משפחה)'; return; }
+        if (!passcode || passcode.length < 4) { err.textContent = 'בחר סיסמה (לפחות 4 תווים)'; return; }
 
         try {
             const res = await fetch(`${API}/register`, {

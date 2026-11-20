@@ -67,8 +67,13 @@
             <h2 class="text-2xl font-black text-slate-800 mb-1">שעון נוכחות</h2>
             <p id="clock-time" class="text-slate-400 text-sm mb-6"></p>
 
+            <input type="text" id="emp-name"
+                   placeholder="שם מלא"
+                   autocomplete="off"
+                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+                   onkeypress="if(event.key==='Enter') document.getElementById('emp-passcode').focus()">
             <input type="password" id="emp-passcode"
-                   placeholder="הכנס קוד אישי"
+                   placeholder="סיסמה"
                    autocomplete="off"
                    class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
                    onkeypress="if(event.key==='Enter') handleShift('clock-in')">
@@ -173,8 +178,13 @@
         <div class="bg-white rounded-3xl shadow-2xl p-10 w-80">
             <div class="text-4xl mb-3">🔐</div>
             <h2 class="text-2xl font-black text-slate-800 mb-6">כניסת מנהל</h2>
+            <input type="text" id="manager-name"
+                   placeholder="שם מלא"
+                   autocomplete="username"
+                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
+                   onkeypress="if(event.key==='Enter') document.getElementById('manager-passcode').focus()">
             <input type="password" id="manager-passcode"
-                   placeholder="קוד מנהל"
+                   placeholder="סיסמה"
                    autocomplete="off"
                    class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
                    onkeypress="if(event.key==='Enter') handleManagerLogin()">
@@ -210,7 +220,7 @@
     // נקה שדות פסקוד בטעינת הדף — מונע אוטו-פיל של הדפדפן
     // + warm-up ping: מעיר את שרת Render ברקע כדי לקצר את זמן ההמתנה בכניסה
     window.addEventListener('load', () => {
-        ['emp-passcode', 'manager-passcode'].forEach(id => {
+        ['emp-name', 'emp-passcode', 'manager-name', 'manager-passcode'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
@@ -231,20 +241,23 @@
 
         // נקה שדות
         if (id === 'screen-clock') {
+            document.getElementById('emp-name').value = '';
             document.getElementById('emp-passcode').value = '';
             document.getElementById('clock-error').textContent = '';
-            document.getElementById('emp-passcode').focus();
+            document.getElementById('emp-name').focus();
         }
         if (id === 'screen-manager-login') {
             document.getElementById('manager-passcode').value = '';
             document.getElementById('manager-error').textContent = '';
+            document.getElementById('manager-name').focus();
         }
     }
 
     async function handleShift(type) {
+        const full_name = document.getElementById('emp-name').value.trim();
         const passcode = document.getElementById('emp-passcode').value.trim();
         const errEl = document.getElementById('clock-error');
-        if (!passcode) { errEl.textContent = 'הכנס קוד אישי'; return; }
+        if (!full_name || !passcode) { errEl.textContent = 'הכנס שם מלא וסיסמה'; return; }
 
         const btns = document.querySelectorAll('#screen-clock button');
         btns.forEach(b => b.disabled = true);
@@ -260,20 +273,14 @@
             const res = await fetch(`${API}/shifts/${type}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode })
+                body: JSON.stringify({ full_name, passcode })
             });
             clearTimeout(wakeTimer);
             errEl.style.color = '';
             const data = await res.json();
 
             if (res.ok) {
-                const userRes = await fetch(`${API}/users/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ passcode })
-                });
-                const user = userRes.ok ? await userRes.json() : { full_name: '' };
-                showConfirm(user.full_name, type);
+                showConfirm(full_name, type);
             } else {
                 errEl.textContent = data.detail || 'שגיאה';
             }
@@ -312,9 +319,10 @@
     }
 
     async function handleManagerLogin() {
+        const full_name = document.getElementById('manager-name').value.trim();
         const passcode = document.getElementById('manager-passcode').value.trim();
         const errEl = document.getElementById('manager-error');
-        if (!passcode) { errEl.textContent = 'הכנס קוד'; return; }
+        if (!full_name || !passcode) { errEl.textContent = 'הכנס שם מלא וסיסמה'; return; }
 
         const btn = document.querySelector('#screen-manager-login button');
         btn.disabled = true;
@@ -328,24 +336,24 @@
         }, 3000);
 
         try {
-            // Step 1: verify passcode identity
+            // Step 1: verify identity (full name + password)
             const userRes = await fetch(`${API}/users/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode })
+                body: JSON.stringify({ full_name, passcode })
             });
             clearTimeout(wakeTimer);
             errEl.style.color = '';
             const user = await userRes.json();
 
-            if (!userRes.ok) { errEl.textContent = user.detail || 'קוד שגוי'; return; }
-            if (user.role !== 'manager') { errEl.textContent = 'הקוד הזה הוא של עובד, לא מנהל'; return; }
+            if (!userRes.ok) { errEl.textContent = user.detail || 'שם או סיסמה שגויים'; return; }
+            if (user.role !== 'manager') { errEl.textContent = 'החשבון הזה הוא של עובד — כניסה דרך "הפורטל שלי"'; return; }
 
             // Step 2: get token (may require 2FA)
             const tokenRes = await fetch(`${API}/auth/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode })
+                body: JSON.stringify({ full_name, passcode })
             });
             const tokenData = await tokenRes.json();
 

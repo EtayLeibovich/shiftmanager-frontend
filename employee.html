@@ -32,7 +32,10 @@
         <div class="text-5xl mb-4">👷‍♂️</div>
         <h1 class="text-3xl font-black text-slate-800 mb-2">פורטל עובד</h1>
         <p class="text-slate-500 mb-8">ShiftManager</p>
-        <input type="password" id="login-passcode" placeholder="קוד אישי"
+        <input type="text" id="login-name" placeholder="שם מלא" autocomplete="username"
+               class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+               onkeypress="if(event.key==='Enter') document.getElementById('login-passcode').focus()">
+        <input type="password" id="login-passcode" placeholder="סיסמה" autocomplete="current-password"
                class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
                onkeypress="if(event.key==='Enter') handleLogin()">
         <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
@@ -261,12 +264,29 @@
             }
         }
     }
-    let passcode = sessionStorage.getItem('emp_passcode') || '';
+    // SECURITY: after login we keep only a signed, expiring token — never the password
+    let token = sessionStorage.getItem('emp_token') || '';
     let userData = null;
     let businessId = null;
     let _setupPendingToken = null;
     let _pendingToken = null;
-    let _pendingPasscode = null;
+
+    // fetch with the login token; an expired/invalid token sends the user back to login
+    async function empFetch(path, options = {}) {
+        const res = await fetchWithRetry(`${API}${path}`, {
+            ...options,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...(options.headers || {}) }
+        });
+        if (res.status === 401) { handleLogout(); throw new Error('unauthorized'); }
+        return res;
+    }
+
+    function completeLogin(accessToken) {
+        token = accessToken;
+        sessionStorage.setItem('emp_token', token);
+        sessionStorage.removeItem('emp_passcode'); // legacy key from older versions
+        showPortal();
+    }
 
     // SECURITY: Escape HTML to prevent XSS when inserting user data into innerHTML
     function escapeHtml(str) {
@@ -283,14 +303,15 @@
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('leave-start').value = today;
         document.getElementById('leave-end').value = today;
-        if (passcode) showPortal();
+        if (token) showPortal();
     });
 
     // ==================== כניסה / יציאה ====================
     async function handleLogin() {
+        const full_name = document.getElementById('login-name').value.trim();
         const code = document.getElementById('login-passcode').value.trim();
         const err = document.getElementById('login-error');
-        if (!code) { err.textContent = 'הכנס קוד'; return; }
+        if (!full_name || !code) { err.textContent = 'הכנס שם מלא וסיסמה'; return; }
         const btn = document.querySelector('#login-screen button');
         btn.disabled = true; btn.textContent = '⏳...';
         err.textContent = '';
@@ -298,12 +319,14 @@
             const res = await fetch(`${API}/auth/token`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode: code })
+                body: JSON.stringify({ full_name, passcode: code })
             });
             const data = await res.json();
-            if (!res.ok) { err.textContent = data.detail || 'קוד שגוי'; return; }
-            _pendingPasscode = code;
-            if (data.requires_2fa_setup) {
+            if (!res.ok) { err.textContent = data.detail || 'שם או סיסמה שגויים'; return; }
+            document.getElementById('login-passcode').value = '';
+            if (data.access_token) {
+                completeLogin(data.access_token);
+            } else if (data.requires_2fa_setup) {
                 _setupPendingToken = data.pending_token;
                 await openEmpSetup2FA();
             } else if (data.requires_2fa) {
@@ -360,10 +383,8 @@
             if (!res.ok) { errEl.textContent = data.detail || 'קוד שגוי';
                 document.getElementById('emp-setup-code').value = '';
                 document.getElementById('emp-setup-code').focus(); return; }
-            passcode = _pendingPasscode;
-            sessionStorage.setItem('emp_passcode', passcode);
             document.getElementById('setup-2fa-screen').style.display = 'none';
-            showPortal();
+            completeLogin(data.access_token);
         } catch { errEl.textContent = 'שגיאת תקשורת'; }
         finally { btn.disabled = false; btn.textContent = '✅ אמת וכנס'; }
     }
@@ -384,10 +405,8 @@
             if (!res.ok) { errEl.textContent = data.detail || 'קוד שגוי';
                 document.getElementById('emp-totp-code').value = '';
                 document.getElementById('emp-totp-code').focus(); return; }
-            passcode = _pendingPasscode;
-            sessionStorage.setItem('emp_passcode', passcode);
             document.getElementById('verify-2fa-screen').style.display = 'none';
-            showPortal();
+            completeLogin(data.access_token);
         } catch { errEl.textContent = 'שגיאת תקשורת'; }
         finally { btn.disabled = false; btn.textContent = 'כניסה'; }
     }
@@ -399,8 +418,9 @@
     }
 
     function handleLogout() {
-        passcode = ''; userData = null; businessId = null;
-        _setupPendingToken = null; _pendingToken = null; _pendingPasscode = null;
+        token = ''; userData = null; businessId = null;
+        _setupPendingToken = null; _pendingToken = null;
+        sessionStorage.removeItem('emp_token');
         sessionStorage.removeItem('emp_passcode');
         document.getElementById('portal').style.display = 'none';
         document.getElementById('setup-2fa-screen').style.display = 'none';
@@ -411,8 +431,8 @@
 
     async function showPortal() {
         try {
-            const res = await fetch(`${API}/shifts/personal-stats/${passcode}`);
-            if (!res.ok) { sessionStorage.removeItem('emp_passcode'); return; }
+            const res = await empFetch('/shifts/personal-stats');
+            if (!res.ok) { handleLogout(); return; }
             const data = await res.json();
             userData = data.user;
             businessId = data.user.business_id;
@@ -449,11 +469,7 @@
     async function doClock(type) {
         const msg = document.getElementById('clock-msg');
         try {
-            const res = await fetch(`${API}/shifts/${type}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode })
-            });
+            const res = await empFetch(`/me/${type}`, { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
                 msg.textContent = type === 'clock-in' ? '✅ נרשמה כניסה!' : '✅ נרשמה יציאה!';
@@ -502,10 +518,9 @@
         messagesEl.scrollTop = messagesEl.scrollHeight;
 
         try {
-            const res = await fetchWithRetry(`${API}/ai/employee-ask`, {
+            const res = await empFetch('/ai/employee-ask', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode, query, history: aiHistory })
+                body: JSON.stringify({ query, history: aiHistory })
             });
             const data = await res.json();
             aiHistory.push({ role: 'user', content: query });
@@ -525,7 +540,7 @@
     // ==================== משמרות אחרונות ====================
     async function loadMyShifts() {
         try {
-            const res = await fetch(`${API}/shifts/personal/${passcode}`);
+            const res = await empFetch('/shifts/personal');
             const shifts = await res.json();
             const container = document.getElementById('shifts-list');
             if (!shifts.length) {
@@ -552,7 +567,7 @@
     // ==================== היעדרויות ====================
     async function loadMyLeave() {
         try {
-            const res = await fetch(`${API}/leave/personal/${passcode}`);
+            const res = await empFetch('/leave/personal');
             const requests = await res.json();
             const container = document.getElementById('leave-history');
             if (!requests.length) {
@@ -581,7 +596,6 @@
     async function submitLeave() {
         const msg = document.getElementById('leave-msg');
         const body = {
-            passcode,
             leave_type: document.getElementById('leave-type').value,
             start_date: document.getElementById('leave-start').value,
             end_date: document.getElementById('leave-end').value,
@@ -593,9 +607,8 @@
             return;
         }
         try {
-            const res = await fetch(`${API}/leave/`, {
+            const res = await empFetch('/leave/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
             if (res.ok) {
@@ -615,7 +628,7 @@
     async function loadMyNotifications() {
         if (!businessId || !userData?.id) return;
         try {
-            const res = await fetch(`${API}/notifications/${businessId}?user_id=${userData.id}`);
+            const res = await empFetch(`/notifications/${businessId}?user_id=${userData.id}`);
             const notifs = await res.json();
             const container = document.getElementById('my-notifs');
             if (!notifs.length) { container.innerHTML = ''; return; }
@@ -629,7 +642,7 @@
     }
 
     async function dismissNotif(id) {
-        await fetch(`${API}/notifications/mark-read/${id}`, { method: 'POST' });
+        try { await empFetch(`/notifications/mark-read/${id}`, { method: 'POST' }); } catch {}
         loadMyNotifications();
     }
 
@@ -668,7 +681,7 @@
         const grid = document.getElementById('my-roster-grid');
         grid.innerHTML = '<p class="text-slate-400 text-center py-4">טוען...</p>';
         try {
-            const res = await fetchWithRetry(`${API}/roster/my-week/${passcode}?week_start=${weekStr}`);
+            const res = await empFetch(`/roster/my-week?week_start=${weekStr}`);
             if (!res.ok) { grid.innerHTML = '<p class="text-slate-400 text-center py-4">אין נתונים</p>'; return; }
             const data = await res.json();
             const shiftColors = {
@@ -725,7 +738,7 @@
 
             // Load team view
             try {
-                const teamRes = await fetchWithRetry(`${API}/roster/${businessId}?week_start=${weekStr}`);
+                const teamRes = await empFetch(`/roster/${businessId}?week_start=${weekStr}`);
                 if (teamRes.ok) {
                     const teamData = await teamRes.json();
                     const SHIFT_LABELS_EMP = { morning: '🌅 בוקר · 10:30–18:00', evening: '🌆 ערב · 18:00–23:00', double: '🔄 כפולה' };
@@ -763,10 +776,9 @@
         const weekStr = myRosterWeek.toISOString().slice(0,10);
         try {
             btn.disabled = true;
-            const res = await fetchWithRetry(`${API}/roster/preference`, {
+            const res = await empFetch('/roster/preference', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode, week_start: weekStr, day, preference })
+                body: JSON.stringify({ week_start: weekStr, day, preference })
             });
             if (res.ok) { loadMyRoster(); return; }
             const errData = await res.json().catch(() => ({}));
