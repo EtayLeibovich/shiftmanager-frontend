@@ -16,6 +16,7 @@
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
       }
     </script>
+    <script src="demo-banner.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -396,6 +397,7 @@
     }
 
     function handleLogout() {
+        if (window.SM_IS_DEMO) { sessionStorage.removeItem('emp_token'); location.href = 'demo.html'; return; }
         token = ''; userData = null; businessId = null;
         _setupPendingToken = null; _pendingToken = null;
         sessionStorage.removeItem('emp_token');

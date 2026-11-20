@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShiftManager | הדגמה חיה</title>
+    <meta name="description" content="הדגמה חיה של ShiftManager: מערכת לניהול משמרות, נוכחות ושכר לעסקים קטנים, עם סוכן AI.">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#0C1424">
+    <meta property="og:title" content="ShiftManager — הדגמה חיה">
+    <meta property="og:description" content="מערכת לניהול משמרות, נוכחות ושכר, עם סוכן AI. כניסה בלחיצה, בלי הרשמה.">
+    <meta property="og:image" content="icon-512.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="brand.css">
+    <style>
+        .wrap { max-width: 1040px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px) 64px; }
+        .top { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+        .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 6vw, 72px); align-items: center; padding: clamp(24px, 6vh, 72px) 0 56px; }
+        h1 { font-size: clamp(34px, 5vw, 54px); font-weight: 600; line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 18px; max-width: 18ch; }
+        .lede { color: var(--dim); font-size: 18px; line-height: 1.65; margin: 0 0 30px; max-width: 54ch; }
+        .enter { display: grid; gap: 12px; max-width: 460px; }
+        .enter .sm-btn { justify-content: space-between; text-align: right; padding: 18px 22px; }
+        .enter .who { display: block; font-size: 14px; font-weight: 400; opacity: .78; margin-top: 2px; }
+        .status { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 14px; margin-top: 16px; min-height: 20px; }
+        .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; flex: none; }
+        .status.ready i { background: var(--ok); }
+        .status.waking i { background: var(--day); animation: blink 1.2s infinite; }
+        @keyframes blink { 50% { opacity: .3; } }
+
+        .dial { width: 100%; max-width: 340px; justify-self: center; }
+
+        .cols { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(28px, 5vw, 64px); border-top: 1px solid var(--line); padding-top: 40px; }
+        h2 { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+        .try { margin: 0; padding: 0 20px 0 0; color: var(--dim); line-height: 1.75; font-size: 16px; }
+        .try li { margin-bottom: 8px; }
+        .try b { color: var(--text); font-weight: 500; }
+        dl.stack { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 20px; font-size: 15px; }
+        dl.stack dt { color: var(--faint); }
+        dl.stack dd { margin: 0; color: var(--text); direction: ltr; text-align: right; }
+        .foot { margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between; }
+        .foot a { color: var(--dim); }
+        .err { color: var(--stop); font-size: 14px; min-height: 20px; margin-top: 8px; }
+
+        @media (max-width: 820px) {
+            .hero { grid-template-columns: 1fr; }
+            .dial { display: none; }
+            .cols { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="sm">
+<div class="wrap">
+    <header class="top">
+        <a href="index.html" class="sm-brand"><img src="logo.svg" alt="" width="34" height="34"><span>ShiftManager</span></a>
+        <a href="https://github.com/EtayLeibovich" class="sm-link" target="_blank" rel="noopener">GitHub</a>
+    </header>
+
+    <section class="hero">
+        <div>
+            <h1>ניהול משמרות, נוכחות ושכר לעסק קטן</h1>
+            <p class="lede">
+                זו הדגמה חיה של המערכת עם עסק לדוגמה, &quot;קפה הנמל&quot;: תשעה עובדים, חודש של משמרות, סידור עבודה ובקשות חופש.
+                אפשר להיכנס בלחיצה, בלי הרשמה, ולנסות הכל. הנתונים חוזרים למצב ההתחלתי כל כמה שעות.
+            </p>
+            <div class="enter">
+                <button class="sm-btn sm-btn-primary" id="btn-manager" onclick="enterDemo('manager')">
+                    <span>כניסה כמנהלת<span class="who">מיכל, לוח הניהול של העסק</span></span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+                </button>
+                <button class="sm-btn sm-btn-ghost" id="btn-worker" onclick="enterDemo('worker')" style="color:var(--text)">
+                    <span>כניסה כעובדת<span class="who">נועה, הפורטל האישי מהטלפון</span></span>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+                </button>
+            </div>
+            <div class="status" id="status" aria-live="polite"><i></i><span>בודק חיבור לשרת…</span></div>
+            <p class="err" id="err"></p>
+        </div>
+
+        <svg class="dial" viewBox="0 0 200 200" aria-hidden="true">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="#26354F" stroke-width="14"/>
+            <path id="arc-day" fill="none" stroke="#F5B83D" stroke-width="14"/>
+            <path id="arc-dusk" fill="none" stroke="#8E7DF7" stroke-width="14"/>
+            <g fill="#5D6D88" font-size="12" font-family="IBM Plex Sans Hebrew, sans-serif" text-anchor="middle">
+                <text x="100" y="42">00</text><text x="160" y="104">06</text>
+                <text x="100" y="166">12</text><text x="40" y="104">18</text>
+            </g>
+            <line id="needle" x1="100" y1="100" x2="100" y2="34" stroke="#E9EEF6" stroke-width="5" stroke-linecap="round" style="transform-origin:100px 100px"/>
+            <circle cx="100" cy="100" r="8" fill="#E9EEF6"/>
+        </svg>
+    </section>
+
+    <section class="cols">
+        <div>
+            <h2>מה כדאי לנסות</h2>
+            <ul class="try">
+                <li>לשאול את <b>עוזר ה-AI</b> &quot;מי עבד הכי הרבה החודש?&quot; ולבקש ממנו לשבץ עובד. הוא מציע את הפעולה, ומבצע רק אחרי אישור</li>
+                <li>לאשר את <b>בקשת החופש</b> של נועה, ואז להיכנס כנועה ולראות את ההתראה</li>
+                <li>לבנות <b>סידור עבודה</b> לשבוע הבא לפי ההעדפות שהעובדים הגישו</li>
+                <li>להפיק <b>דוח שכר חודשי</b> עם חישוב שעות נוספות (125% ו-150%) ולייצא ל-CSV</li>
+                <li>להחתים כניסה ויציאה ב<b>שעון הנוכחות</b> מהטלפון</li>
+            </ul>
+        </div>
+        <div>
+            <h2>איך זה בנוי</h2>
+            <dl class="stack">
+                <dt>שרת</dt><dd>Python, FastAPI, SQLAlchemy</dd>
+                <dt>מסד נתונים</dt><dd>PostgreSQL (Neon)</dd>
+                <dt>אבטחה</dt><dd>JWT, bcrypt, TOTP 2FA, per-business authorization</dd>
+                <dt>AI</dt><dd>Tool-calling agent (Groq) with human approval</dd>
+                <dt>ממשק</dt><dd>HTML/JS, Tailwind, Chart.js, PWA</dd>
+                <dt>אירוח</dt><dd>Vercel + Render</dd>
+            </dl>
+        </div>
+    </section>
+
+    <footer class="foot">
+        <span>ShiftManager נבנה על ידי Etay Leibovich</span>
+        <span><a href="https://github.com/EtayLeibovich/shiftmanager-backend" target="_blank" rel="noopener">קוד השרת</a> &nbsp; <a href="https://github.com/EtayLeibovich/shiftmanager-frontend" target="_blank" rel="noopener">קוד הממשק</a></span>
+    </footer>
+</div>
+
+<script>
+    const API = "https://shiftmanager-backend-n0ix.onrender.com";
+
+    // ---- dial (same geometry as the logo and home page) ----
+    function pt(h, r = 80) { const a = h / 24 * 2 * Math.PI; return [100 + r * Math.sin(a), 100 - r * Math.cos(a)]; }
+    function arc(f, t) { const [a, b] = pt(f), [c, d] = pt(t); return `M${a.toFixed(2)} ${b.toFixed(2)} A80 80 0 0 1 ${c.toFixed(2)} ${d.toFixed(2)}`; }
+    document.getElementById('arc-day').setAttribute('d', arc(10.62, 17.88));
+    document.getElementById('arc-dusk').setAttribute('d', arc(18.12, 22.88));
+    function tick() { const n = new Date(); document.getElementById('needle').style.transform = `rotate(${(n.getHours() + n.getMinutes() / 60) / 24 * 360}deg)`; }
+    tick(); setInterval(tick, 30000);
+
+    // ---- wake the free-tier server as soon as the page opens ----
+    const statusEl = document.getElementById('status');
+    let ready = false;
+    function setStatus(cls, text) { statusEl.className = 'status ' + cls; statusEl.querySelector('span').textContent = text; }
+    async function warmUp() {
+        const slow = setTimeout(() => { if (!ready) setStatus('waking', 'השרת מתעורר משינה (שרת חינמי). זה לוקח עד דקה, אפשר כבר ללחוץ'); }, 2500);
+        for (let i = 0; i < 12 && !ready; i++) {
+            try {
+                const r = await fetch(`${API}/health`, { cache: 'no-store' });
+                if (r.ok) { ready = true; break; }
+            } catch {}
+            await new Promise(r => setTimeout(r, 5000));
+        }
+        clearTimeout(slow);
+        setStatus(ready ? 'ready' : '', ready ? 'השרת מוכן' : 'השרת לא מגיב כרגע. נסה לרענן בעוד דקה');
+    }
+    warmUp();
+
+    async function enterDemo(role) {
+        const btn = document.getElementById(role === 'manager' ? 'btn-manager' : 'btn-worker');
+        const err = document.getElementById('err');
+        document.querySelectorAll('.enter .sm-btn').forEach(b => b.disabled = true);
+        btn.querySelector('span').firstChild.textContent = 'מכין את ההדגמה…';
+        err.textContent = '';
+        try {
+            const res = await fetch(`${API}/demo/login`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'הכניסה להדגמה נכשלה');
+            if (role === 'manager') {
+                localStorage.setItem('sm_token', data.access_token);
+                localStorage.setItem('sm_business_id', data.user.business_id);
+                localStorage.setItem('sm_manager_name', data.user.full_name);
+                location.href = 'admin.html';
+            } else {
+                sessionStorage.setItem('emp_token', data.access_token);
+                location.href = 'employee.html';
+            }
+        } catch (e) {
+            err.textContent = e.message === 'Failed to fetch' ? 'אין חיבור לשרת. ייתכן שהוא עדיין מתעורר, נסה שוב בעוד כמה שניות' : e.message;
+            document.querySelectorAll('.enter .sm-btn').forEach(b => b.disabled = false);
+            btn.querySelector('span').firstChild.textContent = role === 'manager' ? 'כניסה כמנהלת' : 'כניסה כעובדת';
+        }
+    }
+</script>
+</body>
+</html>
