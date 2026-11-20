@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShiftManager | פורטל עובד</title>
+    <title>ShiftManager | הפורטל שלי</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3b82f6">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#0C1424">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ShiftManager">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
@@ -17,133 +18,128 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="brand.css">
     <style>
-        body { font-family: 'Heebo', sans-serif; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .auth { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; box-sizing: border-box; }
+        .auth .card { width: 100%; max-width: 400px; padding: 32px 28px; text-align: center; box-sizing: border-box; }
+        .auth h1, .auth h2 { font-size: 26px; font-weight: 600; margin: 18px 0 6px; }
+        .auth .sub { color: var(--dim); margin: 0 0 24px; font-size: 15px; }
+        .auth .stack { display: flex; flex-direction: column; gap: 12px; }
+        .steps { text-align: right; margin: 0 0 20px; padding: 0 22px 0 0; color: var(--dim); font-size: 15px; line-height: 1.7; }
+        .steps b { color: var(--text); font-weight: 600; }
+        .secret { font-size: 12px; color: var(--faint); margin: 10px 0 20px; word-break: break-all; direction: ltr; }
+        .secret span { color: var(--dim); letter-spacing: .12em; }
+        .portal-head { border-bottom: 1px solid var(--line); background: var(--ink); position: sticky; top: 0; z-index: 10; }
+        .stat-n { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen">
+<body class="sm sm-dark min-h-screen">
 
 <!-- ==================== מסך כניסה ==================== -->
-<div id="login-screen" class="min-h-screen bg-slate-900 flex items-center justify-center">
-    <div class="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center">
-        <div class="text-5xl mb-4">👷‍♂️</div>
-        <h1 class="text-3xl font-black text-slate-800 mb-2">פורטל עובד</h1>
-        <p class="text-slate-500 mb-8">ShiftManager</p>
-        <input type="text" id="login-name" placeholder="שם מלא" autocomplete="username"
-               class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
-               onkeypress="if(event.key==='Enter') document.getElementById('login-passcode').focus()">
-        <input type="password" id="login-passcode" placeholder="סיסמה" autocomplete="current-password"
-               class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
-               onkeypress="if(event.key==='Enter') handleLogin()">
-        <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
-            כניסה
-        </button>
-        <p id="login-error" class="mt-4 text-rose-500 font-bold text-sm min-h-[20px]"></p>
-        <a href="index.html" class="mt-6 block text-slate-400 text-sm hover:text-slate-600">→ שעון נוכחות משותף</a>
+<div id="login-screen" class="auth">
+    <div class="card sm-panel">
+        <a href="index.html" class="sm-brand"><img src="logo.svg" alt="" width="34" height="34"><span>ShiftManager</span></a>
+        <h1>הפורטל שלי</h1>
+        <p class="sub">המשמרות, הסידור ובקשות החופש שלך</p>
+        <div class="stack">
+            <input type="text" id="login-name" class="sm-field" placeholder="שם מלא" autocomplete="username"
+                   onkeypress="if(event.key==='Enter') document.getElementById('login-passcode').focus()">
+            <input type="password" id="login-passcode" class="sm-field" placeholder="סיסמה" autocomplete="current-password"
+                   onkeypress="if(event.key==='Enter') handleLogin()">
+            <button onclick="handleLogin()" class="sm-btn sm-btn-primary">כניסה</button>
+        </div>
+        <p id="login-error" class="sm-error"></p>
+        <a href="index.html" class="sm-link" style="display:inline-block;margin-top:10px">לשעון הנוכחות</a>
     </div>
 </div>
 
 <!-- ==================== מסך הגדרת 2FA ==================== -->
-<div id="setup-2fa-screen" style="display:none" class="min-h-screen bg-slate-900 flex items-center justify-center">
-    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center">
-        <div class="text-5xl mb-3">🔐</div>
-        <h2 class="text-2xl font-black text-slate-800 mb-1">הגדרת אבטחה חובה</h2>
-        <p class="text-slate-500 text-sm mb-5">סרוק עם Google Authenticator כדי להמשיך</p>
-        <div id="emp-setup-loading" class="py-8 text-slate-400">⏳ טוען...</div>
+<div id="setup-2fa-screen" style="display:none" class="auth">
+    <div class="card sm-panel" style="max-width:440px">
+        <h2 style="margin-top:0">אימות דו-שלבי</h2>
+        <p class="sub">הגדרה חד-פעמית שמגינה על החשבון שלך</p>
+        <div id="emp-setup-loading" class="sub" style="margin:40px 0">מכין קוד QR…</div>
         <div id="emp-setup-qr" style="display:none">
-            <div id="emp-qrcode" class="bg-white p-3 rounded-xl border border-slate-200 inline-block mb-3"></div>
-            <p class="text-xs text-slate-400 mb-1">קוד ידני:</p>
-            <p id="emp-2fa-secret" class="font-mono text-xs text-purple-600 tracking-widest mb-5 break-all"></p>
-            <p class="text-sm font-bold text-slate-700 mb-2">הכנס קוד מהאפליקציה:</p>
-            <input type="text" id="emp-setup-code" maxlength="6" inputmode="numeric"
-                   placeholder="123456"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+            <ol class="steps">
+                <li>מתקינים בטלפון את <b>Google Authenticator</b></li>
+                <li>פותחים את האפליקציה, לוחצים <b>+</b> ובוחרים <b>סריקת קוד QR</b> (לא דרך המצלמה הרגילה)</li>
+                <li>מקלידים כאן את 6 הספרות שמופיעות באפליקציה</li>
+            </ol>
+            <div id="emp-qrcode" class="sm-qr"></div>
+            <p class="secret">אין אפשרות לסרוק? הזן באפליקציה את המפתח: <span id="emp-2fa-secret"></span></p>
+            <input type="text" id="emp-setup-code" maxlength="6" inputmode="numeric" class="sm-field code"
+                   placeholder="000000" autocomplete="one-time-code"
                    onkeypress="if(event.key==='Enter') confirmEmpSetup2FA()">
-            <p id="emp-setup-error" class="text-rose-500 text-sm min-h-[20px] mb-2"></p>
-            <button onclick="confirmEmpSetup2FA()" id="btn-emp-setup-confirm"
-                    class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
-                ✅ אמת וכנס
-            </button>
+            <p id="emp-setup-error" class="sm-error"></p>
+            <button onclick="confirmEmpSetup2FA()" id="btn-emp-setup-confirm" class="sm-btn sm-btn-primary">אימות וכניסה</button>
         </div>
     </div>
 </div>
 
 <!-- ==================== מסך אימות 2FA ==================== -->
-<div id="verify-2fa-screen" style="display:none" class="min-h-screen bg-slate-900 flex items-center justify-center">
-    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center">
-        <div class="text-5xl mb-3">🔑</div>
-        <h2 class="text-2xl font-black text-slate-800 mb-1">אימות דו-שלבי</h2>
-        <p class="text-slate-500 text-sm mb-6">הכנס את הקוד מ-Google Authenticator</p>
-        <input type="text" id="emp-totp-code" maxlength="6" inputmode="numeric"
-               placeholder="123456"
-               class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+<div id="verify-2fa-screen" style="display:none" class="auth">
+    <div class="card sm-panel">
+        <h2 style="margin-top:0">קוד אימות</h2>
+        <p class="sub">הקלד את 6 הספרות מאפליקציית Google Authenticator</p>
+        <input type="text" id="emp-totp-code" maxlength="6" inputmode="numeric" class="sm-field code"
+               placeholder="000000" autocomplete="one-time-code"
                onkeypress="if(event.key==='Enter') submitEmpTOTP()">
-        <p id="emp-totp-error" class="text-rose-500 text-sm min-h-[20px] mb-2"></p>
-        <button onclick="submitEmpTOTP()" id="btn-emp-totp"
-                class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
-            כניסה
-        </button>
+        <p id="emp-totp-error" class="sm-error"></p>
+        <button onclick="submitEmpTOTP()" id="btn-emp-totp" class="sm-btn sm-btn-primary">כניסה</button>
     </div>
 </div>
 
 <!-- ==================== הפורטל ==================== -->
 <div id="portal" style="display:none">
 
-    <!-- כותרת עליונה -->
-    <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
-        <div class="max-w-2xl mx-auto flex justify-between items-center">
-            <div>
-                <p class="text-slate-400 text-xs">ShiftManager</p>
-                <h1 id="portal-greeting" class="text-xl font-black text-slate-800">שלום!</h1>
+    <header class="portal-head px-4 py-3">
+        <div class="max-w-2xl mx-auto flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <img src="logo.svg" alt="" width="32" height="32">
+                <h1 id="portal-greeting" class="text-lg font-semibold truncate">שלום</h1>
             </div>
-            <button onclick="handleLogout()" class="bg-rose-50 text-rose-500 px-4 py-2 rounded-xl text-sm font-bold hover:bg-rose-100">
-                התנתק
-            </button>
+            <button onclick="handleLogout()" class="sm-btn sm-btn-ghost" style="width:auto;padding:8px 14px;font-size:14px">התנתקות</button>
         </div>
     </header>
 
     <div class="max-w-2xl mx-auto p-4">
 
-        <!-- כרטיס כניסה / יציאה ממשמרת -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 mb-4">
-            <div class="flex justify-between items-center">
+        <!-- כניסה / יציאה ממשמרת -->
+        <div class="bg-white rounded-3xl border border-slate-200 p-5 mb-4">
+            <div class="flex justify-between items-center gap-3 flex-wrap">
                 <div>
-                    <p class="text-slate-400 text-sm mb-1">סטטוס משמרת</p>
+                    <p class="text-slate-500 text-sm mb-1">סטטוס משמרת</p>
                     <div class="flex items-center gap-2">
                         <span id="status-dot" class="w-3 h-3 rounded-full bg-slate-300"></span>
-                        <span id="status-text" class="font-bold text-slate-600">בודק...</span>
+                        <span id="status-text" class="font-semibold text-slate-600">בודק…</span>
                     </div>
                 </div>
                 <div class="flex gap-3">
-                    <button id="btn-clock-in" onclick="doClock('clock-in')"
-                            class="bg-emerald-500 text-white font-bold px-5 py-3 rounded-xl hover:bg-emerald-600 transition-all">
-                        ✅ כניסה
-                    </button>
-                    <button id="btn-clock-out" onclick="doClock('clock-out')"
-                            class="bg-rose-500 text-white font-bold px-5 py-3 rounded-xl hover:bg-rose-600 transition-all" style="display:none">
-                        🔴 יציאה
-                    </button>
+                    <button id="btn-clock-in" onclick="doClock('clock-in')" class="sm-btn sm-btn-in" style="width:auto;padding:12px 26px">כניסה</button>
+                    <button id="btn-clock-out" onclick="doClock('clock-out')" class="sm-btn sm-btn-out" style="width:auto;padding:12px 26px;display:none">יציאה</button>
                 </div>
             </div>
             <p id="clock-msg" class="mt-3 text-sm font-bold min-h-[20px] text-center"></p>
         </div>
 
-        <!-- כרטיסי סטטיסטיקה -->
+        <!-- נתוני החודש -->
         <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="bg-white rounded-2xl border border-slate-200 p-4 text-center">
-                <p class="text-slate-400 text-xs font-bold mb-1">שעות החודש</p>
-                <p id="stat-hours" class="text-2xl font-black text-blue-600">-</p>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                <p class="text-slate-500 text-sm mb-1">שעות החודש</p>
+                <p id="stat-hours" class="stat-n">-</p>
             </div>
-            <div class="bg-white rounded-2xl border border-slate-200 p-4 text-center">
-                <p class="text-slate-400 text-xs font-bold mb-1">שכר משוער</p>
-                <p id="stat-salary" class="text-2xl font-black text-emerald-600">-</p>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                <p class="text-slate-500 text-sm mb-1">שכר משוער</p>
+                <p id="stat-salary" class="stat-n">-</p>
             </div>
-            <div class="bg-white rounded-2xl border border-slate-200 p-4 text-center">
-                <p class="text-slate-400 text-xs font-bold mb-1">משמרות הבאות</p>
-                <p id="stat-upcoming" class="text-2xl font-black text-purple-600">-</p>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4">
+                <p class="text-slate-500 text-sm mb-1">משמרות קרובות</p>
+                <p id="stat-upcoming" class="stat-n">-</p>
             </div>
         </div>
 
@@ -151,49 +147,37 @@
         <div id="my-notifs" class="mb-4 space-y-2"></div>
 
         <!-- טאבים -->
-        <div class="flex gap-2 mb-4 bg-white rounded-2xl p-1.5 border border-slate-200">
-            <button onclick="showTab('shifts')" id="ptab-shifts"
-                    class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white transition-all">
-                🕐 משמרות
-            </button>
-            <button onclick="showTab('schedule')" id="ptab-schedule"
-                    class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                📅 סידור
-            </button>
-            <button onclick="showTab('leave')" id="ptab-leave"
-                    class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                🏖️ חופש
-            </button>
-            <button onclick="showTab('ai')" id="ptab-ai"
-                    class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">
-                🤖 AI
-            </button>
+        <div class="flex gap-1 mb-4 bg-white rounded-2xl p-1.5 border border-slate-200" role="tablist">
+            <button onclick="showTab('shifts')" id="ptab-shifts" class="flex-1 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white transition-all">משמרות</button>
+            <button onclick="showTab('schedule')" id="ptab-schedule" class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">סידור</button>
+            <button onclick="showTab('leave')" id="ptab-leave" class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">חופש</button>
+            <button onclick="showTab('ai')" id="ptab-ai" class="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">עוזר AI</button>
         </div>
 
-        <!-- תוכן: המשמרות שלי -->
+        <!-- המשמרות שלי -->
         <div id="tab-shifts" class="tab-content active">
             <div id="shifts-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-6">טוען...</p>
+                <p class="text-slate-400 text-center py-6">טוען…</p>
             </div>
         </div>
 
-        <!-- תוכן: סידור שבועי -->
+        <!-- סידור שבועי -->
         <div id="tab-schedule" class="tab-content">
-            <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-3 flex justify-between items-center">
-                <button onclick="rosterPrev()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">→ הקודם</button>
-                <span id="my-roster-label" class="font-bold text-slate-700 text-sm"></span>
-                <button onclick="rosterNext()" class="text-slate-400 font-bold px-3 py-2 rounded-xl hover:bg-slate-100">← הבא</button>
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 mb-3 flex justify-between items-center">
+                <button onclick="rosterPrev()" class="text-slate-500 font-semibold px-3 py-2 rounded-xl hover:bg-slate-100">השבוע הקודם</button>
+                <span id="my-roster-label" class="font-semibold text-slate-700 text-sm sm-num"></span>
+                <button onclick="rosterNext()" class="text-slate-500 font-semibold px-3 py-2 rounded-xl hover:bg-slate-100">השבוע הבא</button>
             </div>
             <div id="my-roster-grid" class="space-y-2"></div>
         </div>
 
-        <!-- תוכן: היעדרות -->
+        <!-- היעדרות -->
         <div id="tab-leave" class="tab-content">
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
-                <h3 class="font-bold text-lg mb-4">📝 שלח בקשת היעדרות</h3>
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+                <h3 class="font-semibold text-lg mb-4">בקשת היעדרות</h3>
                 <div class="grid grid-cols-2 gap-4 mb-3">
                     <div class="col-span-2">
-                        <label class="block text-sm font-bold text-slate-500 mb-1">סוג</label>
+                        <label class="sm-label" for="leave-type">סוג</label>
                         <select id="leave-type" class="w-full border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="vacation">חופשה</option>
                             <option value="sick">מחלה</option>
@@ -202,47 +186,41 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-slate-500 mb-1">מתאריך</label>
+                        <label class="sm-label" for="leave-start">מתאריך</label>
                         <input type="date" id="leave-start" class="w-full border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-slate-500 mb-1">עד תאריך</label>
+                        <label class="sm-label" for="leave-end">עד תאריך</label>
                         <input type="date" id="leave-end" class="w-full border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
-                <textarea id="leave-reason" rows="2" placeholder="סיבה (אופציונלי)"
+                <textarea id="leave-reason" rows="2" placeholder="סיבה (לא חובה)"
                           class="w-full border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 mb-3"></textarea>
-                <button onclick="submitLeave()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700">
-                    שלח בקשה
-                </button>
+                <button onclick="submitLeave()" class="sm-btn sm-btn-primary">שליחת הבקשה</button>
                 <p id="leave-msg" class="text-center text-sm font-bold mt-2 min-h-[20px]"></p>
             </div>
 
-            <h3 class="font-bold text-lg mb-3">הבקשות שלי</h3>
+            <h3 class="font-semibold text-lg mb-3">הבקשות שלי</h3>
             <div id="leave-history" class="space-y-2">
-                <p class="text-slate-400 text-center py-4">טוען...</p>
+                <p class="text-slate-400 text-center py-4">טוען…</p>
             </div>
         </div>
 
-
-        <!-- תוכן: AI -->
+        <!-- AI -->
         <div id="tab-ai" class="tab-content">
             <div class="bg-white rounded-2xl border border-slate-200 flex flex-col" style="height:480px">
                 <div class="p-4 border-b border-slate-100">
-                    <h3 class="font-bold text-slate-800">🤖 עוזר AI אישי</h3>
-                    <p class="text-xs text-slate-400">שאל אותי על המשמרות, השכר, החופשות שלך</p>
+                    <h3 class="font-semibold">עוזר AI אישי</h3>
+                    <p class="text-sm text-slate-500">שאלות על המשמרות, השעות והחופשות שלך</p>
                 </div>
                 <div id="ai-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
-                    <div class="text-center text-slate-400 text-sm mt-8">שאל אותי כל שאלה על הנתונים שלך 👋</div>
+                    <div class="text-center text-slate-400 text-sm mt-8">למשל: כמה שעות עבדתי החודש?</div>
                 </div>
                 <div class="p-3 border-t border-slate-100 flex gap-2">
-                    <input type="text" id="ai-input" placeholder="למשל: כמה שעות עבדתי החודש?"
+                    <input type="text" id="ai-input" placeholder="כתוב שאלה"
                            class="flex-1 bg-slate-100 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                            onkeypress="if(event.key==='Enter') sendAiMessage()">
-                    <button onclick="sendAiMessage()" id="ai-send-btn"
-                            class="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all">
-                        שלח
-                    </button>
+                    <button onclick="sendAiMessage()" id="ai-send-btn" class="sm-btn sm-btn-primary" style="width:auto;padding:10px 18px;font-size:15px">שליחה</button>
                 </div>
             </div>
         </div>
@@ -386,7 +364,7 @@
             document.getElementById('setup-2fa-screen').style.display = 'none';
             completeLogin(data.access_token);
         } catch { errEl.textContent = 'שגיאת תקשורת'; }
-        finally { btn.disabled = false; btn.textContent = '✅ אמת וכנס'; }
+        finally { btn.disabled = false; btn.textContent = 'אימות וכניסה'; }
     }
 
     async function submitEmpTOTP() {
@@ -439,7 +417,7 @@
 
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('portal').style.display = 'block';
-            document.getElementById('portal-greeting').textContent = `שלום, ${data.user.full_name} 👋`;
+            document.getElementById('portal-greeting').textContent = `שלום, ${data.user.full_name}`;
             document.getElementById('stat-hours').textContent = data.monthly_hours;
             document.getElementById('stat-salary').textContent = `₪${data.estimated_salary}`;
             document.getElementById('stat-upcoming').textContent = data.upcoming_shifts;
@@ -448,7 +426,7 @@
             const btnOut = document.getElementById('btn-clock-out');
             if (data.is_clocked_in) {
                 document.getElementById('status-dot').className = 'w-3 h-3 rounded-full bg-emerald-400 animate-pulse';
-                document.getElementById('status-text').textContent = 'במשמרת כרגע ✅';
+                document.getElementById('status-text').textContent = 'במשמרת כרגע';
                 document.getElementById('status-text').className = 'font-bold text-emerald-600';
                 btnIn.style.display  = 'none';
                 btnOut.style.display = '';
@@ -472,7 +450,7 @@
             const res = await empFetch(`/me/${type}`, { method: 'POST' });
             const data = await res.json();
             if (res.ok) {
-                msg.textContent = type === 'clock-in' ? '✅ נרשמה כניסה!' : '✅ נרשמה יציאה!';
+                msg.textContent = type === 'clock-in' ? 'נרשמה כניסה למשמרת' : 'נרשמה יציאה מהמשמרת';
                 msg.className = 'mt-3 text-sm font-bold text-emerald-600 text-center';
                 showPortal();
             } else {
@@ -612,7 +590,7 @@
                 body: JSON.stringify(body)
             });
             if (res.ok) {
-                msg.textContent = '✅ הבקשה נשלחה!';
+                msg.textContent = 'הבקשה נשלחה למנהל';
                 msg.className = 'text-center text-sm font-bold mt-2 text-emerald-600';
                 document.getElementById('leave-reason').value = '';
                 loadMyLeave();

@@ -5,199 +5,223 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShiftManager | שעון נוכחות</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3b82f6">
+    <link rel="icon" href="logo.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#0C1424">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ShiftManager">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
       }
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap" rel="stylesheet">
-    <style> body { font-family: 'Heebo', sans-serif; } </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="brand.css">
+    <style>
+        .page { min-height: 100vh; display: flex; flex-direction: column; padding: 0 clamp(16px, 4vw, 48px); box-sizing: border-box; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+        .screen { flex: 1; display: none; align-items: center; justify-content: center; padding: 24px 0 48px; }
+
+        /* ---- Home: dial + actions ---- */
+        .home { width: 100%; max-width: 1080px; display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(32px, 6vw, 88px); align-items: center; }
+        .now { display: flex; align-items: center; gap: 36px; }
+        .dial { width: clamp(150px, 22vw, 260px); flex: none; }
+        .dial .needle { transform-origin: 100px 100px; transition: transform 1.4s cubic-bezier(.2,.8,.2,1); }
+        .time { font-size: clamp(64px, 10vw, 128px); font-weight: 300; line-height: .9; letter-spacing: -0.03em; margin: 0; direction: ltr; text-align: right; }
+        .date { color: var(--dim); font-size: 18px; margin: 14px 0 0; }
+        .shift-now { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 16px; color: var(--dim); }
+        .shift-now i { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); display: inline-block; }
+
+        .actions { display: flex; flex-direction: column; }
+        .action { box-sizing: border-box; display: flex; align-items: center; gap: 16px; padding: 20px 4px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; background: none; border-top: 0; border-left: 0; border-right: 0; font: inherit; text-align: right; cursor: pointer; width: 100%; }
+        .action:first-child { border-top: 1px solid var(--line); }
+        .action .t { font-size: 20px; font-weight: 600; display: block; }
+        .action .s { color: var(--dim); font-size: 15px; display: block; margin-top: 2px; }
+        .action .grow { flex: 1; }
+        .action .chev { color: var(--faint); transition: transform .15s, color .15s; }
+        .action:hover .chev { color: var(--text); transform: translateX(-4px); }
+        .action.primary { background: var(--day); color: var(--day-ink); border-radius: var(--radius-lg); padding: 24px 22px; border: 0; margin-bottom: 10px; }
+        .action.primary .s { color: rgba(42, 27, 0, .72); }
+        .action.primary .chev { color: var(--day-ink); }
+        .action.primary + .action { border-top: 0; }
+        .join { margin-top: 22px; color: var(--dim); font-size: 15px; }
+        .join a { color: var(--text); font-weight: 500; }
+
+        /* ---- Forms ---- */
+        .card { width: 100%; max-width: 400px; padding: 32px 28px; text-align: center; box-sizing: border-box; }
+        .card h2 { font-size: 26px; font-weight: 600; margin: 0 0 6px; }
+        .card .sub { color: var(--dim); margin: 0 0 24px; font-size: 15px; }
+        .stack { display: flex; flex-direction: column; gap: 12px; }
+        .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+        .kiosk-time { font-size: 44px; font-weight: 300; letter-spacing: -0.02em; margin: 0 0 4px; direction: ltr; }
+        .back { margin-top: 14px; }
+
+        /* ---- Confirmation ---- */
+        .confirm-mark { width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 18px; display: grid; place-items: center; font-size: 46px; font-weight: 600; }
+        .confirm-mark.in { background: rgba(47,196,141,.15); color: var(--ok); }
+        .confirm-mark.out { background: rgba(142,125,247,.16); color: var(--dusk); }
+        .bar { height: 4px; background: var(--raise); border-radius: 4px; overflow: hidden; margin: 26px 0 10px; }
+        .bar div { height: 100%; background: var(--day); transition: width .1s linear; }
+
+        /* ---- 2FA ---- */
+        .steps { text-align: right; margin: 0 0 20px; padding: 0 22px 0 0; color: var(--dim); font-size: 15px; line-height: 1.7; }
+        .steps b { color: var(--text); font-weight: 600; }
+        .secret { font-size: 12px; color: var(--faint); margin: 10px 0 20px; word-break: break-all; direction: ltr; }
+        .secret span { color: var(--dim); letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+        .modal { position: fixed; inset: 0; background: rgba(5, 9, 18, .78); backdrop-filter: blur(6px); z-index: 50; align-items: center; justify-content: center; padding: 16px; }
+
+        @media (max-width: 860px) {
+            .home { grid-template-columns: 1fr; gap: 36px; }
+            .now { gap: 22px; }
+            .dial { width: 120px; }
+            .date { font-size: 16px; }
+        }
+    </style>
 </head>
-<body class="bg-slate-900 flex items-center justify-center min-h-screen" id="main-body">
+<body class="sm">
+<div class="page">
+
+    <header class="topbar">
+        <a href="index.html" class="sm-brand" onclick="showScreen('screen-main'); return false;">
+            <img src="logo.svg" alt="" width="34" height="34"><span>ShiftManager</span>
+        </a>
+    </header>
 
     <!-- ===== מסך ראשי ===== -->
-    <div id="screen-main" class="text-center">
-        <h1 class="text-5xl font-black text-white mb-3 tracking-tight">
-            ברוך הבא ל-<span class="text-blue-500">ShiftManager</span>
-        </h1>
-        <p class="text-slate-500 mb-10">בחר את הפעולה שלך</p>
+    <main id="screen-main" class="screen" style="display:flex">
+        <div class="home">
+            <section class="now" aria-label="השעה עכשיו">
+                <svg class="dial" viewBox="0 0 200 200" aria-hidden="true">
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#26354F" stroke-width="14"/>
+                    <path id="arc-day" fill="none" stroke="#F5B83D" stroke-width="14"/>
+                    <path id="arc-dusk" fill="none" stroke="#8E7DF7" stroke-width="14"/>
+                    <g fill="#5D6D88" font-size="12" font-family="IBM Plex Sans Hebrew, sans-serif" text-anchor="middle">
+                        <text x="100" y="42">00</text><text x="160" y="104">06</text>
+                        <text x="100" y="166">12</text><text x="40" y="104">18</text>
+                    </g>
+                    <g class="needle" id="needle">
+                        <line x1="100" y1="100" x2="100" y2="34" stroke="#E9EEF6" stroke-width="5" stroke-linecap="round"/>
+                    </g>
+                    <circle cx="100" cy="100" r="8" fill="#E9EEF6"/>
+                </svg>
+                <div>
+                    <p class="time sm-num" id="home-time">--:--</p>
+                    <p class="date" id="home-date"></p>
+                    <span class="shift-now" id="shift-now"><i></i><span></span></span>
+                </div>
+            </section>
 
-        <div class="flex gap-6 justify-center mb-8">
-            <!-- שעון נוכחות -->
-            <button onclick="showScreen('screen-clock')"
-                    class="group bg-slate-800 p-10 rounded-3xl border border-slate-700 hover:border-emerald-500 transition-all w-56">
-                <div class="text-5xl mb-4 group-hover:scale-110 transition-transform">⏰</div>
-                <h3 class="text-white text-xl font-bold">שעון נוכחות</h3>
-                <p class="text-slate-500 text-sm mt-1">כניסה / יציאה</p>
-            </button>
-
-            <!-- הפורטל האישי -->
-            <a href="employee.html"
-               class="group bg-slate-800 p-10 rounded-3xl border border-slate-700 hover:border-blue-500 transition-all w-56 no-underline block">
-                <div class="text-5xl mb-4 group-hover:scale-110 transition-transform">📱</div>
-                <h3 class="text-white text-xl font-bold">הפורטל שלי</h3>
-                <p class="text-slate-500 text-sm mt-1">משמרות, לוח, היעדרות</p>
-            </a>
-
-            <!-- כניסת מנהל -->
-            <button onclick="showScreen('screen-manager-login')"
-                    class="group bg-slate-800 p-10 rounded-3xl border border-slate-700 hover:border-purple-500 transition-all w-56">
-                <div class="text-5xl mb-4 group-hover:scale-110 transition-transform">🔐</div>
-                <h3 class="text-white text-xl font-bold">כניסת מנהל</h3>
-                <p class="text-slate-500 text-sm mt-1">לוח ניהול</p>
-            </button>
+            <nav class="actions" aria-label="פעולות">
+                <button class="action primary" onclick="showScreen('screen-clock')">
+                    <span class="grow"><span class="t">החתמת כניסה או יציאה</span><span class="s">עם השם המלא והסיסמה שלך</span></span>
+                    <svg class="chev" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+                </button>
+                <a class="action" href="employee.html">
+                    <span class="grow"><span class="t">הפורטל שלי</span><span class="s">המשמרות, הסידור ובקשות החופש שלך</span></span>
+                    <svg class="chev" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+                </a>
+                <button class="action" onclick="showScreen('screen-manager-login')">
+                    <span class="grow"><span class="t">כניסת מנהל</span><span class="s">עובדים, נוכחות, סידור ודוחות שכר</span></span>
+                    <svg class="chev" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+                </button>
+                <p class="join">עובד חדש? <a href="employee-register.html">הצטרפות לעסק עם קוד</a></p>
+            </nav>
         </div>
-
-        <a href="employee-register.html" class="text-slate-500 text-sm hover:text-white transition-colors">
-            עובד חדש? הצטרף לעסק ←
-        </a>
-    </div>
+    </main>
 
     <!-- ===== שעון נוכחות ===== -->
-    <div id="screen-clock" style="display:none" class="text-center">
-        <div class="bg-white rounded-3xl shadow-2xl p-10 w-80">
-            <div class="text-4xl mb-2">⏰</div>
-            <h2 class="text-2xl font-black text-slate-800 mb-1">שעון נוכחות</h2>
-            <p id="clock-time" class="text-slate-400 text-sm mb-6"></p>
-
-            <input type="text" id="emp-name"
-                   placeholder="שם מלא"
-                   autocomplete="off"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
-                   onkeypress="if(event.key==='Enter') document.getElementById('emp-passcode').focus()">
-            <input type="password" id="emp-passcode"
-                   placeholder="סיסמה"
-                   autocomplete="off"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
-                   onkeypress="if(event.key==='Enter') handleShift('clock-in')">
-
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <button onclick="handleShift('clock-in')"
-                        class="bg-emerald-500 text-white font-bold py-4 rounded-xl hover:bg-emerald-600 transition-all text-lg">
-                    ✅ כניסה
-                </button>
-                <button onclick="handleShift('clock-out')"
-                        class="bg-rose-500 text-white font-bold py-4 rounded-xl hover:bg-rose-600 transition-all text-lg">
-                    🔴 יציאה
-                </button>
+    <section id="screen-clock" class="screen">
+        <div class="card sm-panel">
+            <p id="clock-time" class="kiosk-time sm-num"></p>
+            <p class="sub">הזן שם מלא וסיסמה, ובחר כניסה או יציאה</p>
+            <div class="stack">
+                <input type="text" id="emp-name" class="sm-field" placeholder="שם מלא" autocomplete="off"
+                       onkeypress="if(event.key==='Enter') document.getElementById('emp-passcode').focus()">
+                <input type="password" id="emp-passcode" class="sm-field" placeholder="סיסמה" autocomplete="off"
+                       onkeypress="if(event.key==='Enter') handleShift('clock-in')">
+                <div class="row2">
+                    <button onclick="handleShift('clock-in')" class="sm-btn sm-btn-in">כניסה</button>
+                    <button onclick="handleShift('clock-out')" class="sm-btn sm-btn-out">יציאה</button>
+                </div>
             </div>
-
-            <p id="clock-error" class="text-rose-500 text-sm font-bold min-h-[20px]"></p>
-            <button onclick="showScreen('screen-main')" class="mt-4 text-slate-400 text-sm hover:text-slate-600">
-                ← חזור
-            </button>
+            <p id="clock-error" class="sm-error"></p>
+            <button onclick="showScreen('screen-main')" class="sm-link back">חזרה</button>
         </div>
-    </div>
+    </section>
 
     <!-- ===== מסך אישור לאחר כניסה/יציאה ===== -->
-    <div id="screen-confirm" style="display:none" class="text-center">
-        <div class="bg-white rounded-3xl shadow-2xl p-12 w-96">
-            <div id="confirm-icon" class="text-8xl mb-4">✅</div>
-            <h2 id="confirm-name" class="text-3xl font-black text-slate-800 mb-2">שלום!</h2>
-            <p id="confirm-action" class="text-xl text-slate-600 mb-2">נרשמה כניסה</p>
-            <p id="confirm-time" class="text-slate-400 text-sm mb-8"></p>
-
-            <div id="confirm-bar-bg" class="w-full bg-slate-100 rounded-full h-2 mb-4">
-                <div id="confirm-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-100" style="width:100%"></div>
-            </div>
-            <p class="text-slate-400 text-xs">חוזר אוטומטית בעוד <span id="confirm-counter">4</span> שניות...</p>
+    <section id="screen-confirm" class="screen" aria-live="polite">
+        <div class="card sm-panel">
+            <div id="confirm-icon" class="confirm-mark in">✓</div>
+            <h2 id="confirm-name">שלום</h2>
+            <p id="confirm-action" class="sub" style="font-size:18px;color:var(--text);margin-bottom:4px">נרשמה כניסה</p>
+            <p id="confirm-time" class="sub sm-num" style="margin:0"></p>
+            <div class="bar"><div id="confirm-bar" style="width:100%"></div></div>
+            <p class="sub" style="font-size:13px;margin:0">חוזר למסך השעון בעוד <span id="confirm-counter" class="sm-num">4</span> שניות</p>
         </div>
-    </div>
+    </section>
 
     <!-- ===== מסך הגדרת 2FA חובה ===== -->
-    <div id="screen-setup-2fa" style="display:none" class="text-center">
-        <div class="bg-white rounded-3xl shadow-2xl p-8 w-96 max-w-full">
-
-            <!-- שלב א: QR code -->
+    <section id="screen-setup-2fa" class="screen">
+        <div class="card sm-panel" style="max-width:440px">
             <div id="setup-step-qr">
-                <div class="text-4xl mb-2">🔐</div>
-                <h2 class="text-xl font-black text-slate-800 mb-1">הגדרת אבטחה חובה</h2>
-                <p class="text-slate-500 text-sm mb-4">סרוק עם Google Authenticator כדי להמשיך</p>
-                <div class="flex justify-center mb-3">
-                    <div id="login-qrcode" class="bg-white p-3 rounded-xl border border-slate-200 inline-block"></div>
-                </div>
-                <p class="text-slate-400 text-xs mb-1">קוד ידני:</p>
-                <p id="login-2fa-secret" class="font-mono text-xs text-purple-600 tracking-widest mb-4 break-all"></p>
-                <p class="text-slate-700 text-sm font-semibold mb-2">הכנס קוד מהאפליקציה:</p>
-                <input type="text" id="login-setup-code" inputmode="numeric" maxlength="6" placeholder="123456"
-                       class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-3 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
+                <h2>אימות דו-שלבי</h2>
+                <p class="sub">הגדרה חד-פעמית שמגינה על חשבון המנהל</p>
+                <ol class="steps">
+                    <li>מתקינים בטלפון את <b>Google Authenticator</b></li>
+                    <li>פותחים את האפליקציה, לוחצים <b>+</b> ובוחרים <b>סריקת קוד QR</b> (לא דרך המצלמה הרגילה)</li>
+                    <li>מקלידים כאן את 6 הספרות שמופיעות באפליקציה</li>
+                </ol>
+                <div id="login-qrcode" class="sm-qr"></div>
+                <p class="secret">אין אפשרות לסרוק? הזן באפליקציה את המפתח: <span id="login-2fa-secret"></span></p>
+                <input type="text" id="login-setup-code" class="sm-field code" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code"
                        onkeypress="if(event.key==='Enter') confirmLoginSetup2FA()">
-                <button onclick="confirmLoginSetup2FA()" id="btn-login-confirm-2fa"
-                        class="w-full bg-purple-600 text-white font-bold py-4 rounded-xl hover:bg-purple-700 transition-all text-lg mb-2">
-                    ✅ אמת וכנס
-                </button>
-                <p id="login-setup-error" class="text-rose-500 text-sm font-bold min-h-[20px]"></p>
-                <button onclick="showScreen('screen-manager-login')" class="mt-2 text-slate-400 text-sm hover:text-slate-600">
-                    ← חזור
-                </button>
+                <button onclick="confirmLoginSetup2FA()" id="btn-login-confirm-2fa" class="sm-btn sm-btn-primary" style="margin-top:12px">אימות וכניסה</button>
+                <p id="login-setup-error" class="sm-error"></p>
+                <button onclick="showScreen('screen-manager-login')" class="sm-link back">חזרה</button>
             </div>
-
-            <!-- שלב ב: טעינה -->
             <div id="setup-step-loading" style="display:none">
-                <div class="text-5xl mb-4">⏳</div>
-                <p class="text-slate-600 font-bold">מייצר QR code...</p>
+                <p class="sub" style="margin:40px 0">מכין קוד QR…</p>
             </div>
-
         </div>
-    </div>
+    </section>
 
     <!-- ===== מודל 2FA ===== -->
-    <div id="modal-2fa" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:50;"
-         class="flex items-center justify-center">
-        <div class="bg-white rounded-3xl shadow-2xl p-10 w-80 text-center">
-            <div class="text-4xl mb-3">🔐</div>
-            <h2 class="text-xl font-black text-slate-800 mb-1">אימות דו-שלבי</h2>
-            <p class="text-slate-500 text-sm mb-6">הזן את הקוד מ-Google Authenticator</p>
-            <input type="text" id="totp-code"
-                   inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                   placeholder="123456"
-                   autocomplete="one-time-code"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-3xl tracking-widest mb-4 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
+    <div id="modal-2fa" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="totp-title">
+        <div class="card sm-panel">
+            <h2 id="totp-title">קוד אימות</h2>
+            <p class="sub">הקלד את 6 הספרות מאפליקציית Google Authenticator</p>
+            <input type="text" id="totp-code" class="sm-field code" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                   placeholder="000000" autocomplete="one-time-code"
                    onkeypress="if(event.key==='Enter') submit2FACode()">
-            <button onclick="submit2FACode()"
-                    id="btn-2fa-submit"
-                    class="w-full bg-purple-600 text-white font-bold py-4 rounded-xl hover:bg-purple-700 transition-all text-lg mb-3">
-                אמת קוד
-            </button>
-            <p id="totp-error" class="text-rose-500 text-sm font-bold min-h-[20px]"></p>
-            <button onclick="close2FAModal()" class="mt-2 text-slate-400 text-sm hover:text-slate-600">
-                ← ביטול
-            </button>
+            <button onclick="submit2FACode()" id="btn-2fa-submit" class="sm-btn sm-btn-primary" style="margin-top:12px">אימות</button>
+            <p id="totp-error" class="sm-error"></p>
+            <button onclick="close2FAModal()" class="sm-link back">ביטול</button>
         </div>
     </div>
 
     <!-- ===== כניסת מנהל ===== -->
-    <div id="screen-manager-login" style="display:none" class="text-center">
-        <div class="bg-white rounded-3xl shadow-2xl p-10 w-80">
-            <div class="text-4xl mb-3">🔐</div>
-            <h2 class="text-2xl font-black text-slate-800 mb-6">כניסת מנהל</h2>
-            <input type="text" id="manager-name"
-                   placeholder="שם מלא"
-                   autocomplete="username"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-xl mb-3 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
-                   onkeypress="if(event.key==='Enter') document.getElementById('manager-passcode').focus()">
-            <input type="password" id="manager-passcode"
-                   placeholder="סיסמה"
-                   autocomplete="off"
-                   class="w-full p-4 bg-slate-100 rounded-xl text-center text-2xl mb-4 outline-none focus:ring-2 focus:ring-purple-500 border border-slate-200"
-                   onkeypress="if(event.key==='Enter') handleManagerLogin()">
-            <button onclick="handleManagerLogin()"
-                    class="w-full bg-purple-600 text-white font-bold py-4 rounded-xl hover:bg-purple-700 transition-all text-lg mb-3">
-                כניסה
-            </button>
-            <p id="manager-error" class="text-rose-500 text-sm font-bold min-h-[20px]"></p>
-            <button onclick="showScreen('screen-main')" class="mt-2 text-slate-400 text-sm hover:text-slate-600">
-                ← חזור
-            </button>
+    <section id="screen-manager-login" class="screen">
+        <div class="card sm-panel">
+            <h2>כניסת מנהל</h2>
+            <p class="sub">לוח הניהול של העסק</p>
+            <div class="stack">
+                <input type="text" id="manager-name" class="sm-field" placeholder="שם מלא" autocomplete="username"
+                       onkeypress="if(event.key==='Enter') document.getElementById('manager-passcode').focus()">
+                <input type="password" id="manager-passcode" class="sm-field" placeholder="סיסמה" autocomplete="current-password"
+                       onkeypress="if(event.key==='Enter') handleManagerLogin()">
+                <button onclick="handleManagerLogin()" class="sm-btn sm-btn-primary">כניסה</button>
+            </div>
+            <p id="manager-error" class="sm-error"></p>
+            <button onclick="showScreen('screen-main')" class="sm-link back">חזרה</button>
         </div>
-    </div>
+    </section>
+
+</div>
 
 <script>
     const API = "https://shiftmanager-backend-n0ix.onrender.com";
@@ -217,7 +241,45 @@
     let _pendingToken = null;      // 2FA login challenge token
     let _setupPendingToken = null; // mandatory 2FA setup token (first login)
 
-    // נקה שדות פסקוד בטעינת הדף — מונע אוטו-פיל של הדפדפן
+    // ===== The 24h shift dial =====
+    // Shift windows match the roster's shift types (morning 10:30–18:00, evening 18:00–23:00).
+    const SHIFTS = [
+        { from: 10.5, to: 18, el: 'arc-day', label: 'משמרת בוקר פעילה', color: '#F5B83D' },
+        { from: 18, to: 23, el: 'arc-dusk', label: 'משמרת ערב פעילה', color: '#8E7DF7' },
+    ];
+    function dialPoint(h, r = 80) {
+        const a = (h / 24) * 2 * Math.PI;
+        return [100 + r * Math.sin(a), 100 - r * Math.cos(a)];
+    }
+    function arcPath(from, to) {
+        const [x1, y1] = dialPoint(from), [x2, y2] = dialPoint(to);
+        const large = (to - from) > 12 ? 1 : 0;
+        return `M${x1.toFixed(2)} ${y1.toFixed(2)} A80 80 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+    }
+    SHIFTS.forEach(s => document.getElementById(s.el).setAttribute('d', arcPath(s.from + 0.12, s.to - 0.12)));
+
+    function tick() {
+        const now = new Date();
+        const h = now.getHours() + now.getMinutes() / 60;
+        const hhmm = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+        document.getElementById('home-time').textContent = hhmm;
+        document.getElementById('home-date').textContent = now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+        document.getElementById('needle').style.transform = `rotate(${(h / 24) * 360}deg)`;
+        const active = SHIFTS.find(s => h >= s.from && h < s.to);
+        const badge = document.getElementById('shift-now');
+        badge.querySelector('i').style.background = active ? active.color : '#5D6D88';
+        badge.querySelector('span').textContent = active
+            ? `${active.label} עד ${String(Math.floor(active.to)).padStart(2, '0')}:00`
+            : 'אין משמרת פעילה כרגע';
+        const k = document.getElementById('clock-time');
+        if (k) k.textContent = now.toLocaleTimeString('he-IL', { hour12: false });
+    }
+    // One orchestrated moment: the needle sweeps from midnight to "now" on load.
+    document.getElementById('needle').style.transform = 'rotate(0deg)';
+    requestAnimationFrame(() => requestAnimationFrame(tick));
+    setInterval(tick, 1000);
+
+    // נקה שדות בטעינת הדף — מונע אוטו-פיל של הדפדפן
     // + warm-up ping: מעיר את שרת Render ברקע כדי לקצר את זמן ההמתנה בכניסה
     window.addEventListener('load', () => {
         ['emp-name', 'emp-passcode', 'manager-name', 'manager-passcode'].forEach(id => {
@@ -227,19 +289,12 @@
         fetch(`${API}/health`).catch(() => {});
     });
 
-    // הצג שעה שוטפת
-    setInterval(() => {
-        const el = document.getElementById('clock-time');
-        if (el) el.textContent = new Date().toLocaleTimeString('he-IL');
-    }, 1000);
-
     function showScreen(id) {
         ['screen-main','screen-clock','screen-confirm','screen-manager-login','screen-setup-2fa'].forEach(s => {
             document.getElementById(s).style.display = 'none';
         });
-        document.getElementById(id).style.display = 'block';
+        document.getElementById(id).style.display = 'flex';
 
-        // נקה שדות
         if (id === 'screen-clock') {
             document.getElementById('emp-name').value = '';
             document.getElementById('emp-passcode').value = '';
@@ -253,21 +308,24 @@
         }
     }
 
+    function setWaking(errEl, msg) {
+        errEl.style.color = 'var(--day)';
+        errEl.textContent = msg;
+    }
+    function clearWaking(errEl) { errEl.style.color = ''; errEl.textContent = ''; }
+
     async function handleShift(type) {
         const full_name = document.getElementById('emp-name').value.trim();
         const passcode = document.getElementById('emp-passcode').value.trim();
         const errEl = document.getElementById('clock-error');
-        if (!full_name || !passcode) { errEl.textContent = 'הכנס שם מלא וסיסמה'; return; }
+        if (!full_name || !passcode) { errEl.textContent = 'הזן שם מלא וסיסמה'; return; }
 
         const btns = document.querySelectorAll('#screen-clock button');
         btns.forEach(b => b.disabled = true);
         errEl.textContent = '';
 
-        // אם לוקח יותר מ-3 שניות — הצג הודעת המתנה (cold start)
-        const wakeTimer = setTimeout(() => {
-            errEl.style.color = '#f59e0b';
-            errEl.textContent = '⏳ השרת מתעורר, נא המתן...';
-        }, 3000);
+        // cold start של השרת החינמי
+        const wakeTimer = setTimeout(() => setWaking(errEl, 'השרת מתעורר, זה עשוי לקחת עד דקה…'), 3000);
 
         try {
             const res = await fetch(`${API}/shifts/${type}`, {
@@ -276,18 +334,18 @@
                 body: JSON.stringify({ full_name, passcode })
             });
             clearTimeout(wakeTimer);
-            errEl.style.color = '';
+            clearWaking(errEl);
             const data = await res.json();
 
             if (res.ok) {
                 showConfirm(full_name, type);
             } else {
-                errEl.textContent = data.detail || 'שגיאה';
+                errEl.textContent = data.detail || 'הפעולה נכשלה';
             }
         } catch {
             clearTimeout(wakeTimer);
             errEl.style.color = '';
-            errEl.textContent = 'שגיאת תקשורת — ודא שהשרת פועל';
+            errEl.textContent = 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב';
         } finally {
             btns.forEach(b => b.disabled = false);
         }
@@ -295,10 +353,11 @@
 
     function showConfirm(name, type) {
         const isIn = type === 'clock-in';
-        document.getElementById('confirm-icon').textContent = isIn ? '✅' : '👋';
-        document.getElementById('confirm-name').textContent = `שלום, ${name}!`;
-        document.getElementById('confirm-action').textContent = isIn ? '✅ נרשמה כניסה למשמרת' : '👋 נרשמה יציאה מהמשמרת';
-        document.getElementById('confirm-time').textContent = `בשעה ${new Date().toLocaleTimeString('he-IL')}`;
+        const mark = document.getElementById('confirm-icon');
+        mark.className = 'confirm-mark ' + (isIn ? 'in' : 'out');
+        document.getElementById('confirm-name').textContent = name;
+        document.getElementById('confirm-action').textContent = isIn ? 'נרשמה כניסה למשמרת' : 'נרשמה יציאה מהמשמרת';
+        document.getElementById('confirm-time').textContent = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
         document.getElementById('confirm-bar').style.width = '100%';
 
         showScreen('screen-confirm');
@@ -322,18 +381,14 @@
         const full_name = document.getElementById('manager-name').value.trim();
         const passcode = document.getElementById('manager-passcode').value.trim();
         const errEl = document.getElementById('manager-error');
-        if (!full_name || !passcode) { errEl.textContent = 'הכנס שם מלא וסיסמה'; return; }
+        if (!full_name || !passcode) { errEl.textContent = 'הזן שם מלא וסיסמה'; return; }
 
-        const btn = document.querySelector('#screen-manager-login button');
+        const btn = document.querySelector('#screen-manager-login .sm-btn');
         btn.disabled = true;
-        btn.textContent = '⏳ מתחבר...';
+        btn.textContent = 'מתחבר…';
         errEl.textContent = '';
 
-        // אם לוקח יותר מ-3 שניות — הצג הודעת המתנה (cold start)
-        const wakeTimer = setTimeout(() => {
-            errEl.style.color = '#f59e0b';
-            errEl.textContent = '⏳ השרת מתעורר, נא המתן עד 60 שניות...';
-        }, 3000);
+        const wakeTimer = setTimeout(() => setWaking(errEl, 'השרת מתעורר, זה עשוי לקחת עד דקה…'), 3000);
 
         try {
             // Step 1: verify identity (full name + password)
@@ -343,11 +398,11 @@
                 body: JSON.stringify({ full_name, passcode })
             });
             clearTimeout(wakeTimer);
-            errEl.style.color = '';
+            clearWaking(errEl);
             const user = await userRes.json();
 
             if (!userRes.ok) { errEl.textContent = user.detail || 'שם או סיסמה שגויים'; return; }
-            if (user.role !== 'manager') { errEl.textContent = 'החשבון הזה הוא של עובד — כניסה דרך "הפורטל שלי"'; return; }
+            if (user.role !== 'manager') { errEl.textContent = 'זה חשבון עובד. הכניסה שלך היא דרך "הפורטל שלי"'; return; }
 
             // Step 2: get token (may require 2FA)
             const tokenRes = await fetch(`${API}/auth/token`, {
@@ -357,14 +412,12 @@
             });
             const tokenData = await tokenRes.json();
 
-            if (!tokenRes.ok) { errEl.textContent = tokenData.detail || 'שגיאה'; return; }
+            if (!tokenRes.ok) { errEl.textContent = tokenData.detail || 'הכניסה נכשלה'; return; }
 
             if (tokenData.requires_2fa_setup) {
-                // מנהל ללא 2FA — חייב להגדיר עכשיו
                 _setupPendingToken = tokenData.pending_token;
                 await openMandatory2FASetup();
             } else if (tokenData.requires_2fa) {
-                // יש 2FA — הכנס קוד מהאפליקציה
                 _pendingToken = tokenData.pending_token;
                 open2FAModal();
             } else {
@@ -373,7 +426,7 @@
         } catch {
             clearTimeout(wakeTimer);
             errEl.style.color = '';
-            errEl.textContent = 'שגיאת תקשורת';
+            errEl.textContent = 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב';
         } finally {
             btn.disabled = false;
             btn.textContent = 'כניסה';
@@ -381,7 +434,6 @@
     }
 
     async function openMandatory2FASetup() {
-        // הצג מסך טעינה
         document.getElementById('setup-step-qr').style.display = 'none';
         document.getElementById('setup-step-loading').style.display = 'block';
         showScreen('screen-setup-2fa');
@@ -395,17 +447,15 @@
                 }
             });
             const data = await res.json();
-            if (!res.ok) { alert(data.detail || 'שגיאה'); showScreen('screen-manager-login'); return; }
+            if (!res.ok) { showScreen('screen-manager-login'); document.getElementById('manager-error').textContent = data.detail || 'ההגדרה נכשלה, התחבר שוב'; return; }
 
-            // שמור setup token ל-verify
             _setupPendingToken = data.setup_token;
 
-            // צור QR code
             const qrEl = document.getElementById('login-qrcode');
             qrEl.innerHTML = '';
             new QRCode(qrEl, {
                 text: data.provisioning_uri,
-                width: 180, height: 180,
+                width: 176, height: 176,
                 colorDark: '#000000', colorLight: '#ffffff',
                 correctLevel: QRCode.CorrectLevel.M
             });
@@ -417,19 +467,19 @@
             document.getElementById('setup-step-qr').style.display = 'block';
             setTimeout(() => document.getElementById('login-setup-code').focus(), 200);
         } catch {
-            alert('שגיאת תקשורת');
             showScreen('screen-manager-login');
+            document.getElementById('manager-error').textContent = 'אין חיבור לשרת. נסה שוב';
         }
     }
 
     async function confirmLoginSetup2FA() {
         const code = document.getElementById('login-setup-code').value.trim();
         const errEl = document.getElementById('login-setup-error');
-        if (!code || code.length !== 6) { errEl.textContent = 'הכנס קוד בן 6 ספרות'; return; }
+        if (!/^\d{6}$/.test(code)) { errEl.textContent = 'הקלד את 6 הספרות מהאפליקציה'; return; }
 
         const btn = document.getElementById('btn-login-confirm-2fa');
         btn.disabled = true;
-        btn.textContent = '⏳ מאמת...';
+        btn.textContent = 'מאמת…';
         errEl.textContent = '';
 
         try {
@@ -440,17 +490,17 @@
             });
             const data = await res.json();
             if (!res.ok) {
-                errEl.textContent = data.detail || 'קוד שגוי';
+                errEl.textContent = (data.detail || 'הקוד שגוי') + '. ודא שהקוד מהשורה ShiftManager באפליקציה, והקלד את הקוד העדכני';
                 document.getElementById('login-setup-code').value = '';
                 document.getElementById('login-setup-code').focus();
                 return;
             }
             finalizeLogin(data, data.user);
         } catch {
-            errEl.textContent = 'שגיאת תקשורת — נסה שוב';
+            errEl.textContent = 'אין חיבור לשרת. נסה שוב';
         } finally {
             btn.disabled = false;
-            btn.textContent = '✅ אמת וכנס';
+            btn.textContent = 'אימות וכניסה';
         }
     }
 
@@ -469,11 +519,11 @@
     async function submit2FACode() {
         const code = document.getElementById('totp-code').value.trim();
         const errEl = document.getElementById('totp-error');
-        if (!code || code.length !== 6) { errEl.textContent = 'הכנס קוד בן 6 ספרות'; return; }
+        if (!/^\d{6}$/.test(code)) { errEl.textContent = 'הקלד את 6 הספרות מהאפליקציה'; return; }
 
         const btn = document.getElementById('btn-2fa-submit');
         btn.disabled = true;
-        btn.textContent = '⏳ מאמת...';
+        btn.textContent = 'מאמת…';
         errEl.textContent = '';
 
         try {
@@ -485,7 +535,7 @@
             const data = await res.json();
 
             if (!res.ok) {
-                errEl.textContent = data.detail || 'קוד שגוי';
+                errEl.textContent = data.detail || 'הקוד שגוי';
                 document.getElementById('totp-code').value = '';
                 document.getElementById('totp-code').focus();
                 return;
@@ -494,10 +544,10 @@
             close2FAModal();
             finalizeLogin(data, data.user);
         } catch {
-            errEl.textContent = 'שגיאת תקשורת — נסה שוב';
+            errEl.textContent = 'אין חיבור לשרת. נסה שוב';
         } finally {
             btn.disabled = false;
-            btn.textContent = 'אמת קוד';
+            btn.textContent = 'אימות';
         }
     }
 
@@ -507,6 +557,10 @@
         localStorage.setItem('sm_manager_name', user.full_name);
         window.location.href = 'admin.html';
     }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.getElementById('modal-2fa').style.display === 'flex') close2FAModal();
+    });
 </script>
 </body>
 </html>

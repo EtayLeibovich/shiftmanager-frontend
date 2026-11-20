@@ -1,8 +1,11 @@
-const CACHE = 'shiftmanager-v1';
+const CACHE = 'shiftmanager-v2';
 const OFFLINE_URLS = [
   '/employee.html',
   '/admin.html',
   '/index.html',
+  '/employee-register.html',
+  '/brand.css',
+  '/logo.svg',
 ];
 
 self.addEventListener('install', e => {

@@ -1,12 +1,12 @@
 {
-  "name": "ShiftManager - פורטל עובד",
+  "name": "ShiftManager",
   "short_name": "ShiftManager",
   "description": "מערכת ניהול משמרות",
-  "start_url": "/employee.html",
+  "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#3b82f6",
+  "background_color": "#0C1424",
+  "theme_color": "#0C1424",
   "orientation": "portrait-primary",
   "lang": "he",
   "dir": "rtl",
@@ -22,6 +22,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
