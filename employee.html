@@ -279,7 +279,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = isoDate(new Date());
         document.getElementById('leave-start').value = today;
         document.getElementById('leave-end').value = today;
         if (token) showPortal();
@@ -643,6 +643,10 @@
     // ==================== סידור שלי ====================
     let myRosterWeek = getThisSunday(new Date());
 
+    // Local calendar date (YYYY-MM-DD). toISOString() converts to UTC, which in Israel
+    // turns Sunday 00:00 into Saturday — the roster was being saved under the wrong week.
+    function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
     function getThisSunday(d) {
         const day = new Date(d);
         day.setDate(day.getDate() - day.getDay());
@@ -653,7 +657,7 @@
     function rosterNext() { myRosterWeek = new Date(myRosterWeek.getTime() + 7*86400000); loadMyRoster(); }
 
     async function loadMyRoster() {
-        const weekStr = myRosterWeek.toISOString().slice(0,10);
+        const weekStr = isoDate(myRosterWeek);
         const end = new Date(myRosterWeek.getTime() + 6*86400000);
         document.getElementById('my-roster-label').textContent =
             `${myRosterWeek.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})} – ${end.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}`;
@@ -677,10 +681,10 @@
                 off:     'לא סוידר עדיין'
             };
             const prefLabels = { morning: '🌅 בוקר', evening: '🌆 ערב', double: '🔄 כפולה' };
-            const today = new Date().toISOString().slice(0,10);
+            const today = isoDate(new Date());
             grid.innerHTML = data.days.map((d, i) => {
                 const dayDate = new Date(myRosterWeek.getTime() + i*86400000);
-                const dateStr = dayDate.toISOString().slice(0,10);
+                const dateStr = isoDate(dayDate);
                 const isToday = dateStr === today;
                 const isAssigned = d.shift_type !== 'off';
                 const colorClass = isAssigned ? (shiftColors[d.shift_type] || shiftColors.off) : 'bg-slate-50 border-slate-200 text-slate-500';
@@ -753,7 +757,7 @@
     }
 
     async function submitPref(day, preference, btn) {
-        const weekStr = myRosterWeek.toISOString().slice(0,10);
+        const weekStr = isoDate(myRosterWeek);
         try {
             btn.disabled = true;
             const res = await empFetch('/roster/preference', {
