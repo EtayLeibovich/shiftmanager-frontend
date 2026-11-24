@@ -53,6 +53,11 @@
         <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></symbol>
         <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
         <symbol id="i-chevron-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+        <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+        <symbol id="i-log" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+        <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/></symbol>
     </defs>
 </svg>
 
@@ -78,10 +83,12 @@
             <button class="sidebar-link" id="nav-roster" onclick="switchTab('roster')"><svg class="i"><use href="#i-calendar"/></svg>סידור עבודה</button>
             <button class="sidebar-link" id="nav-shifts" onclick="switchTab('shifts')"><svg class="i"><use href="#i-history"/></svg>היסטוריית משמרות</button>
             <button class="sidebar-link" id="nav-reports" onclick="switchTab('reports')"><svg class="i"><use href="#i-chart"/></svg>דוחות שכר</button>
+            <button class="sidebar-link" id="nav-payroll-audit" onclick="switchTab('payroll-audit')"><svg class="i"><use href="#i-receipt"/></svg>בקרת שכר</button>
 
             <p class="sb-group">עוד</p>
             <button class="sidebar-link" id="nav-ai" onclick="switchTab('ai')"><svg class="i"><use href="#i-spark"/></svg>עוזר AI</button>
             <button class="sidebar-link" id="nav-branches" onclick="switchTab('branches')"><svg class="i"><use href="#i-building"/></svg>סניפים</button>
+            <button class="sidebar-link" id="nav-audit-log" onclick="switchTab('audit-log')"><svg class="i"><use href="#i-log"/></svg>יומן שינויים</button>
         </nav>
         <div class="sb-foot">
             <div class="sb-user"><span class="avatar" id="sidebar-avatar"></span><span id="sidebar-manager">מנהל</span></div>
@@ -120,6 +127,24 @@
                 <div id="dashboard-status" class="status-bar">
                     <span id="dashboard-status-msg">מתחבר לשרת…</span>
                     <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">ניסיון חוזר</button>
+                </div>
+
+                <!-- Morning briefing agent -->
+                <div class="panel brief" id="briefing-panel">
+                    <div class="brief-h">
+                        <div class="brief-title">
+                            <span class="brief-ic"><svg class="i"><use href="#i-sun"/></svg></span>
+                            <div>
+                                <p class="eyebrow" id="briefing-when">תדריך בוקר</p>
+                                <h2 id="briefing-headline">מכין את התדריך…</h2>
+                            </div>
+                        </div>
+                        <div class="brief-tools">
+                            <div id="briefing-stats" class="chips"></div>
+                            <button class="icon-btn" id="briefing-refresh" onclick="loadBriefing()" aria-label="רענון התדריך" title="רענון התדריך"><svg class="i"><use href="#i-refresh"/></svg></button>
+                        </div>
+                    </div>
+                    <div id="briefing-items" class="brief-list"></div>
                 </div>
 
                 <div class="panel kpis">
@@ -240,6 +265,26 @@
                     <p id="roster-msg" class="empty" style="display:none">אין עובדים לשבץ. הוסף עובדים במסך העובדים.</p>
                 </div>
                 <div id="roster-view-panel" style="display:none"></div>
+
+                <!-- Roster guard agent -->
+                <div class="panel guard" id="compliance-panel">
+                    <div class="panel-h guard-h">
+                        <div class="brief-title">
+                            <span class="brief-ic guard-ic"><svg class="i"><use href="#i-shield"/></svg></span>
+                            <div>
+                                <h2>שומר החוק</h2>
+                                <p class="muted" style="font-size:13px">מנוחה שבועית, שעות ביום ובשבוע, עבודת נוער והיעדרויות</p>
+                            </div>
+                        </div>
+                        <div class="toolbar">
+                            <div id="compliance-chips" class="chips"></div>
+                            <button id="btn-check-roster" class="btn btn-ghost btn-sm hidden" onclick="checkRosterDraft()"><svg class="i"><use href="#i-shield"/></svg>בדוק לפני שמירה</button>
+                        </div>
+                    </div>
+                    <p id="compliance-stale" class="guard-stale hidden">יש שינויים שעוד לא נבדקו. הבדיקה למטה היא של הסידור השמור.</p>
+                    <div id="compliance-body" class="panel-b"><p class="empty">בודק את הסידור…</p></div>
+                    <p id="compliance-disclaimer" class="disclaimer"></p>
+                </div>
             </section>
 
             <!-- ========== SHIFT HISTORY ========== -->
@@ -278,6 +323,37 @@
                     <table class="data-table">
                         <thead><tr><th>עובד</th><th>תפקיד</th><th>משמרות</th><th>שעות</th><th>תעריף</th><th>שכר משוער</th></tr></thead>
                         <tbody id="report-table"><tr><td colspan="6" class="empty">בחר חודש ולחץ "הפקת דוח"</td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ========== PAYROLL AUDIT ========== -->
+            <section id="tab-payroll-audit" class="tab-section">
+                <div class="section-h">
+                    <div><h2 class="h">בקרת שכר</h2><p>בדיקה לפני שמעבירים לרואה החשבון: משמרות פתוחות או חופפות, שעות שבת, שכר מינימום ומי ששובץ ולא הגיע.</p></div>
+                    <div class="toolbar">
+                        <input type="month" id="pa-month" class="field field-sm" aria-label="חודש">
+                        <button onclick="loadPayrollAudit()" id="btn-pa-run" class="btn btn-primary btn-sm">בדיקה</button>
+                    </div>
+                </div>
+                <div id="pa-summary" class="panel kpis pa-kpis hidden"></div>
+                <div id="pa-body" class="stack"><p class="empty">טוען…</p></div>
+                <p id="pa-disclaimer" class="disclaimer"></p>
+            </section>
+
+            <!-- ========== AUDIT LOG ========== -->
+            <section id="tab-audit-log" class="tab-section">
+                <div class="section-h">
+                    <div><h2 class="h">יומן שינויים</h2><p>כל שינוי שנעשה בעובדים, בסידור, בנוכחות ובבקשות. כל רשומה חתומה ברשומה שלפניה, כך שאי אפשר לשנות אותה בשקט.</p></div>
+                    <div class="toolbar">
+                        <span id="audit-verify" class="verify-msg hidden"></span>
+                        <button onclick="verifyAuditLog()" id="btn-audit-verify" class="btn btn-ghost btn-sm"><svg class="i"><use href="#i-shield"/></svg>בדיקת תקינות</button>
+                    </div>
+                </div>
+                <div class="panel table-wrap">
+                    <table class="data-table audit-table">
+                        <thead><tr><th>מתי</th><th>מי</th><th>מה השתנה</th><th></th></tr></thead>
+                        <tbody id="audit-table"><tr><td colspan="4" class="empty">טוען…</td></tr></tbody>
                     </table>
                 </div>
             </section>
@@ -359,13 +435,39 @@
                 <input type="password" id="emp-passcode" class="field" autocomplete="new-password" placeholder="לפחות 4 תווים"></div>
             <div><label class="lbl" for="emp-rate">תעריף לשעה (₪)</label><input type="number" id="emp-rate" step="0.5" min="0" class="field"></div>
             <div><label class="lbl" for="emp-phone">טלפון</label><input type="tel" id="emp-phone" class="field" style="direction:ltr;text-align:right"></div>
-            <div class="full"><label class="lbl" for="emp-email">אימייל</label><input type="email" id="emp-email" class="field" style="direction:ltr;text-align:right"></div>
+            <div><label class="lbl" for="emp-email">אימייל</label><input type="email" id="emp-email" class="field" style="direction:ltr;text-align:right"></div>
+            <div><label class="lbl" for="emp-birth">תאריך לידה</label><input type="date" id="emp-birth" class="field">
+                <p class="hint">לבדיקת חוק עבודת הנוער (לא חובה)</p></div>
         </div>
         <p id="emp-error" class="err"></p>
         <div class="foot">
             <button onclick="saveEmployee()" class="btn btn-primary">שמירה</button>
             <button onclick="closeModal('employee-modal')" class="btn btn-ghost">ביטול</button>
         </div>
+    </div>
+</div>
+
+<!-- Replacement finder -->
+<div id="replace-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('replace-modal')">
+    <div class="modal panel replace-modal">
+        <div class="replace-top">
+            <div>
+                <h3>מציאת מחליף</h3>
+                <p id="replace-sub" class="sub">עובדים שיכולים לקחת את המשמרת בלי לחרוג מהחוק</p>
+            </div>
+            <button class="icon-btn" onclick="closeModal('replace-modal')" aria-label="סגירה"><svg class="i"><use href="#i-x"/></svg></button>
+        </div>
+        <input type="hidden" id="replace-exclude">
+        <div class="replace-controls">
+            <input type="date" id="replace-date" class="field field-sm" aria-label="תאריך" onchange="loadReplacements()">
+            <div class="seg" id="replace-shift-seg">
+                <button data-shift="morning" onclick="setReplaceShift('morning')" class="active">בוקר</button>
+                <button data-shift="evening" onclick="setReplaceShift('evening')">ערב</button>
+                <button data-shift="double" onclick="setReplaceShift('double')">כפולה</button>
+            </div>
+        </div>
+        <p id="replace-meta" class="faint replace-meta"></p>
+        <div id="replace-list" class="cand-list"></div>
     </div>
 </div>
 

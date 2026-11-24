@@ -1,4 +1,4 @@
-const CACHE = 'shiftmanager-v4';
+const CACHE = 'shiftmanager-v5';
 const OFFLINE_URLS = [
   '/employee.html',
   '/admin.html',

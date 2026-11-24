@@ -23,6 +23,7 @@ function isTokenValid(t) {
 window.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
     document.getElementById('report-month').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('pa-month').value = document.getElementById('report-month').value;
     if (token && businessId && isTokenValid(token)) {
         showApp();
     } else {
@@ -195,7 +196,7 @@ function closeSidebar() {
 const TAB_TITLES = {
     dashboard: 'סקירה', 'manage-shifts': 'נוכחות עכשיו', employees: 'עובדים', approvals: 'הצטרפות לעסק',
     leave: 'בקשות היעדרות', roster: 'סידור עבודה', shifts: 'היסטוריית משמרות', reports: 'דוחות שכר',
-    ai: 'עוזר AI', branches: 'סניפים',
+    ai: 'עוזר AI', branches: 'סניפים', 'payroll-audit': 'בקרת שכר', 'audit-log': 'יומן שינויים',
 };
 
 function switchTab(tab) {
@@ -220,6 +221,8 @@ function refreshCurrentTab() {
     else if (currentTab === 'manage-shifts') loadManageShifts();
     else if (currentTab === 'roster') loadRoster();
     else if (currentTab === 'ai') ensureAIEmptyState();
+    else if (currentTab === 'payroll-audit') loadPayrollAudit();
+    else if (currentTab === 'audit-log') loadAuditLog();
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -247,6 +250,7 @@ async function loadDashboard() {
     const statusBar = document.getElementById('dashboard-status');
     const statusMsg = document.getElementById('dashboard-status-msg');
     if (_dashRetryTimer) { clearTimeout(_dashRetryTimer); _dashRetryTimer = null; }
+    loadBriefing(); // independent: an agent failure never blocks the dashboard
     try {
         const [statsRes, workersRes, notifsRes, empRes, chartsRes] = await Promise.all([
             apiFetch(`/dashboard/stats/${businessId}`),
@@ -412,7 +416,7 @@ async function loadEmployees() {
             ? '<tr><td colspan="6" class="empty">עוד אין עובדים. הוסף עובד ראשון, או שתף את קוד ההצטרפות</td></tr>'
             : employees.map(e => `
                 <tr>
-                    <td class="strong">${escapeHtml(e.full_name)}</td>
+                    <td class="strong">${escapeHtml(e.full_name)}${youthBadge(e.birth_date)}</td>
                     <td><span class="badge ${e.role === 'manager' ? 'badge-amber' : 'badge-gray'}">${e.role === 'manager' ? 'מנהל' : 'עובד'}</span></td>
                     <td>${e.hourly_rate ? '₪' + e.hourly_rate : '<span class="faint">–</span>'}</td>
                     <td style="direction:ltr;text-align:right">${escapeHtml(e.phone) || '<span class="faint">–</span>'}</td>
@@ -439,6 +443,8 @@ function openEmployeeModal(id = null) {
     document.getElementById('emp-rate').value = '';
     document.getElementById('emp-phone').value = '';
     document.getElementById('emp-email').value = '';
+    document.getElementById('emp-birth').value = '';
+    document.getElementById('emp-birth').max = isoDate(new Date());
     document.getElementById('emp-error').textContent = '';
     document.getElementById('employee-modal-title').textContent = id ? 'עריכת עובד' : 'הוספת עובד';
     if (id) {
@@ -449,6 +455,7 @@ function openEmployeeModal(id = null) {
             document.getElementById('emp-rate').value = emp.hourly_rate || '';
             document.getElementById('emp-phone').value = emp.phone || '';
             document.getElementById('emp-email').value = emp.email || '';
+            document.getElementById('emp-birth').value = (emp.birth_date || '').slice(0, 10);
         }
     }
     openModal('employee-modal');
@@ -470,6 +477,7 @@ async function saveEmployee() {
         hourly_rate: parseFloat(document.getElementById('emp-rate').value) || 0,
         phone: document.getElementById('emp-phone').value || null,
         email: document.getElementById('emp-email').value || null,
+        birth_date: document.getElementById('emp-birth').value || null,
     };
     try {
         const res = id
@@ -740,7 +748,7 @@ async function deleteBranch(id) {
 let aiChatHistory = [];
 let aiPendingActions = {};
 let aiActionSeq = 0;
-const AI_SUGGESTIONS = ['מי עבד הכי הרבה שעות החודש?', 'מי במשמרת עכשיו?', 'אילו בקשות חופש ממתינות?', 'מי ביקש משמרת ערב בשבוע הבא?'];
+const AI_SUGGESTIONS = ['מה התדריך להיום?', 'בדוק את הסידור של השבוע מול החוק', 'מי יכול להחליף משמרת ערב היום?', 'מי עבד הכי הרבה שעות החודש?', 'אילו בקשות חופש ממתינות?'];
 
 function ensureAIEmptyState() {
     const box = document.getElementById('ai-response');
@@ -980,6 +988,7 @@ let rosterData = {};
 let rosterViewData = null;
 let rosterLocked = false;
 let rosterMode = 'edit';
+let rosterDirty = false;
 
 function getSunday(d) { const day = new Date(d); day.setDate(day.getDate() - day.getDay()); day.setHours(0, 0, 0, 0); return day; }
 function rosterPrevWeek() { rosterWeekStart = new Date(rosterWeekStart.getTime() - 7 * 86400000); loadRoster(); }
@@ -1021,7 +1030,7 @@ async function loadRoster() {
         emp.days.forEach((item, d) => {
             rosterData[rosterKey(emp.id, d)] = { shift_type: item.shift_type || 'off', position: item.position || '', note: item.note || '' };
         });
-        return `<tr><td class="emp">${escapeHtml(emp.name)}</td>${emp.days.map((item, d) => {
+        return `<tr data-uid="${emp.id}"><td class="emp">${escapeHtml(emp.name)}</td>${emp.days.map((item, d) => {
             const s = item.shift_type || 'off';
             const pref = prefMap[`${emp.id}_${d}`];
             const posOpts = POSITIONS.map(p => `<option value="${p}" ${item.position === p ? 'selected' : ''}>${p || 'עמדה'}</option>`).join('');
@@ -1040,6 +1049,8 @@ async function loadRoster() {
 
     document.getElementById('roster-msg').style.display = data.employees.length ? 'none' : 'block';
     if (rosterMode === 'view') renderRosterView(data);
+    markRosterDirty(false);
+    loadRosterCompliance();
 }
 
 function cycleShift(userId, day, el) {
@@ -1065,19 +1076,33 @@ function updateNote(userId, day, inp) {
     markRosterDirty(true);
 }
 function markRosterDirty(dirty) {
+    rosterDirty = !!dirty;
     document.getElementById('btn-save-roster').textContent = dirty ? 'שמירת השינויים' : 'שמירת הסידור';
+    document.getElementById('btn-check-roster').classList.toggle('hidden', !dirty || rosterLocked);
+    document.getElementById('compliance-stale').classList.toggle('hidden', !dirty || rosterLocked);
+}
+
+function rosterEntries() {
+    return Object.entries(rosterData).map(([key, val]) => {
+        const [user_id, day] = key.split('_');
+        return { user_id: parseInt(user_id), day: parseInt(day), shift_type: val.shift_type || 'off', position: val.position || '', note: val.note || '' };
+    });
 }
 
 async function saveRoster() {
     const btn = document.getElementById('btn-save-roster');
     btn.disabled = true; btn.textContent = 'שומר…';
-    const entries = Object.entries(rosterData).map(([key, val]) => {
-        const [user_id, day] = key.split('_');
-        return { user_id: parseInt(user_id), day: parseInt(day), shift_type: val.shift_type || 'off', position: val.position || '', note: val.note || '' };
-    });
+    const entries = rosterEntries();
     const res = await apiFetch(`/roster/${businessId}`, { method: 'POST', body: JSON.stringify({ week_start: isoDate(rosterWeekStart), entries }) });
     btn.disabled = false;
-    if (res.ok) { btn.textContent = 'הסידור נשמר'; setTimeout(() => markRosterDirty(false), 1800); }
+    if (res.ok) {
+        const saved = await res.json().catch(() => ({}));
+        markRosterDirty(false);
+        btn.textContent = 'הסידור נשמר';
+        setTimeout(() => { if (!rosterDirty) markRosterDirty(false); }, 1800);
+        if (saved && saved.compliance) renderCompliance(saved.compliance);
+        else loadRosterCompliance();
+    }
     else { const d = await res.json().catch(() => ({})); btn.textContent = 'שמירת השינויים'; alert(d.detail || 'השמירה נכשלה'); }
 }
 
@@ -1115,4 +1140,465 @@ function renderRosterView(data) {
         </div>`;
     }).join('');
     container.innerHTML = html || '<p class="empty">עוד לא שובצו משמרות בשבוע הזה</p>';
+}
+
+// ==================== AGENTS ====================
+// Deterministic helpers on the server: morning briefing, replacement finder,
+// roster guard (labour law), pre-payroll audit and the tamper-evident change log.
+// Every panel fails soft: an old backend (404) or a network error shows a quiet message.
+const SEV_ORDER = { high: 0, medium: 1, info: 2 };
+const SHIFT_HE = { morning: 'בוקר', evening: 'ערב', double: 'כפולה', off: 'חופש' };
+const SHIFT_HOURS = { morning: '10:30–18:00', evening: '18:00–23:00', double: '10:30–23:00' };
+
+async function agentGet(path, options) {
+    const res = await apiFetch(path, options);
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok) {
+        const msg = res.status === 404 && (!data || data.detail === 'Not Found')
+            ? 'התכונה תהיה זמינה אחרי עדכון השרת'
+            : (data && typeof data.detail === 'string' ? data.detail : 'הבדיקה נכשלה. נסה שוב');
+        const err = new Error(msg); err.status = res.status; throw err;
+    }
+    return data;
+}
+function agentErr(e) { return e && e.status ? e.message : 'אין חיבור לשרת. נסה שוב'; }
+function sevDot(s) { return `<span class="sev sev-${escapeHtml(s)}"></span>`; }
+function ddmm(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${+m[3]}/${+m[2]}` : ''; }
+function parseISODate(iso) { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); }
+
+function summaryChips(sum) {
+    const s = sum || {};
+    if (!s.high && !s.medium && !s.info) return `<span class="chip ok">${ICON('check')}תקין</span>`;
+    const label = { high: n => n === 1 ? 'חמורה' : 'חמורות', medium: () => 'לבדיקה', info: () => 'לידיעה' };
+    return ['high', 'medium', 'info'].filter(k => s[k]).map(k =>
+        `<span class="chip">${sevDot(k)}<b>${s[k]}</b>${label[k](s[k])}</span>`).join('');
+}
+
+// Messages start with the employee's name. Under a name heading, drop it.
+function stripName(msg, name) {
+    msg = String(msg || '');
+    if (!name || !msg.startsWith(name)) return msg;
+    const rest = msg.slice(name.length).replace(/^\s*:?\s*/, '').replace(/^\(?בן\/בת (\d+)\)?:?\s*/, 'גיל $1: ').replace(/^\(נוער\):\s*/, 'נוער: ');
+    return rest || msg;
+}
+// ...or keep it, bolded, when the list mixes employees.
+function boldName(msg, name) {
+    msg = String(msg || '');
+    if (name && msg.startsWith(name)) return `<b>${escapeHtml(name)}</b>${escapeHtml(msg.slice(name.length))}`;
+    return escapeHtml(msg);
+}
+
+// ---------- Morning briefing ----------
+const TAB_ALIAS = { attendance: 'manage-shifts' };
+const TAB_ACTION_LABEL = { 'manage-shifts': 'לנוכחות', leave: 'לבקשות', approvals: 'לאישור', employees: 'לעובדים', roster: 'לסידור' };
+let briefingItems = [];
+let briefingLoaded = false;
+let _briefingSeq = 0;
+
+async function loadBriefing() {
+    if (!document.getElementById('briefing-panel')) return;
+    const seq = ++_briefingSeq;
+    const btn = document.getElementById('briefing-refresh');
+    btn.disabled = true;
+    try {
+        const data = await agentGet(`/agents/briefing/${businessId}`);
+        if (seq !== _briefingSeq) return;
+        briefingLoaded = true;
+        renderBriefing(data);
+    } catch (e) {
+        if (seq !== _briefingSeq || briefingLoaded) return; // keep the last good briefing on a hiccup
+        document.getElementById('briefing-when').textContent = 'תדריך בוקר';
+        document.getElementById('briefing-headline').textContent = 'התדריך לא זמין כרגע';
+        document.getElementById('briefing-stats').innerHTML = '';
+        document.getElementById('briefing-items').innerHTML = `<p class="inline-err">${escapeHtml(agentErr(e))}</p>`;
+    } finally { btn.disabled = false; }
+}
+
+function briefingTab(item) {
+    if (!item.action || item.action.type !== 'tab') return null;
+    if (item.code === 'pending_registration') return 'approvals';
+    const tab = TAB_ALIAS[item.action.tab] || item.action.tab;
+    return document.getElementById(`tab-${tab}`) ? tab : null;
+}
+
+function renderBriefing(data) {
+    briefingItems = data.items || [];
+    const st = data.stats || {};
+    const at = /T(\d{2}:\d{2})/.exec(data.generated_at || '');
+    document.getElementById('briefing-when').textContent =
+        `תדריך בוקר ליום ${data.day || ''} ${ddmm(data.date)}${at ? `, עודכן ב-${at[1]}` : ''}`;
+    document.getElementById('briefing-headline').textContent = data.headline || (briefingItems.length ? '' : 'הכל תקין היום');
+    const chips = [];
+    if (st.rostered_today != null) chips.push(`<span class="chip"><b>${st.rostered_today}</b>בסידור היום</span>`);
+    if (st.morning) chips.push(`<span class="chip"><span class="sev" style="background:var(--day)"></span>בוקר <b>${st.morning}</b></span>`);
+    if (st.evening) chips.push(`<span class="chip"><span class="sev" style="background:var(--dusk)"></span>ערב <b>${st.evening}</b></span>`);
+    if (st.on_shift_now != null) chips.push(`<span class="chip"><span class="sev" style="background:var(--ok)"></span><b>${st.on_shift_now}</b>במשמרת עכשיו</span>`);
+    document.getElementById('briefing-stats').innerHTML = chips.join('');
+
+    const list = document.getElementById('briefing-items');
+    if (!briefingItems.length) {
+        list.innerHTML = `<p class="brief-ok">${ICON('check')}אין החתמות חסרות, חריגות או בקשות שמחכות לך</p>`;
+        return;
+    }
+    list.innerHTML = briefingItems.map((it, i) => {
+        let btn = '';
+        if (it.action && it.action.type === 'find_replacement') {
+            btn = `<button class="btn btn-primary btn-sm" onclick="openReplaceFromBriefing(${i})">${ICON('swap')}מציאת מחליף</button>`;
+        } else {
+            const tab = briefingTab(it);
+            if (tab) btn = `<button class="btn btn-ghost btn-sm" onclick="switchTab('${tab}')">${TAB_ACTION_LABEL[tab] || 'פתיחה'}</button>`;
+        }
+        return `<div class="brief-item">
+            ${sevDot(it.severity)}
+            <div><p class="t">${escapeHtml(it.title)}</p>${it.detail ? `<p class="d">${escapeHtml(it.detail)}</p>` : ''}</div>
+            ${btn}
+        </div>`;
+    }).join('');
+}
+
+function openReplaceFromBriefing(i) {
+    const a = (briefingItems[i] || {}).action || {};
+    openReplaceModal({ date: a.date, shift_type: a.shift_type, employee_id: a.employee_id });
+}
+
+// ---------- Replacement finder ----------
+let replaceShift = 'morning';
+let replaceCtx = null;
+let replaceCandidates = [];
+let _replaceSeq = 0;
+
+function openReplaceModal(opts = {}) {
+    document.getElementById('replace-date').value = (opts.date || isoDate(new Date())).slice(0, 10);
+    document.getElementById('replace-exclude').value = opts.employee_id || '';
+    const missing = opts.employee_id ? employees.find(e => e.id === Number(opts.employee_id)) : null;
+    document.getElementById('replace-sub').textContent = missing
+        ? `במקום ${missing.full_name}. בראש הרשימה מי שפנוי ולא חורג מכללי שעות העבודה`
+        : 'עובדים פנויים, מסודרים לפי התאמה ולפי כללי שעות העבודה';
+    setReplaceShift(SHIFT_HOURS[opts.shift_type] ? opts.shift_type : (new Date().getHours() >= 17 ? 'evening' : 'morning'), false);
+    openModal('replace-modal');
+    loadReplacements();
+}
+
+function setReplaceShift(s, reload = true) {
+    replaceShift = s;
+    document.querySelectorAll('#replace-shift-seg button').forEach(b => b.classList.toggle('active', b.dataset.shift === s));
+    if (reload) loadReplacements();
+}
+
+async function loadReplacements() {
+    const date = document.getElementById('replace-date').value;
+    const list = document.getElementById('replace-list');
+    const meta = document.getElementById('replace-meta');
+    if (!date) { list.innerHTML = '<p class="empty">בחר תאריך</p>'; meta.textContent = ''; return; }
+    const seq = ++_replaceSeq;
+    const ex = document.getElementById('replace-exclude').value;
+    list.innerHTML = '<p class="empty">מחפש מחליפים…</p>';
+    meta.textContent = '';
+    try {
+        const data = await agentGet(`/agents/replacements/${businessId}?date=${date}&shift_type=${replaceShift}${ex ? `&exclude=${encodeURIComponent(ex)}` : ''}`);
+        if (seq !== _replaceSeq) return;
+        replaceCtx = { date, shift_type: replaceShift };
+        replaceCandidates = data.candidates || [];
+        const sk = data.skipped || {};
+        const skipped = [sk.working_that_day ? `${sk.working_that_day} כבר עובדים באותו יום` : '', sk.on_leave ? `${sk.on_leave} בחופשה` : ''].filter(Boolean);
+        meta.textContent = `יום ${data.day || DAY_NAMES[parseISODate(date).getDay()]} ${ddmm(date)}, ${data.shift_label || SHIFT_HE[replaceShift]} ${SHIFT_HOURS[replaceShift]}`
+            + (skipped.length ? `. לא ברשימה: ${skipped.join(', ')}` : '');
+        if (!replaceCandidates.length) { list.innerHTML = '<p class="empty">אין עובד פנוי למשמרת הזו</p>'; return; }
+        const firstOk = replaceCandidates.findIndex(c => c.ok);
+        list.innerHTML = replaceCandidates.map((c, i) => candHTML(c, i, i === firstOk)).join('');
+    } catch (e) {
+        if (seq !== _replaceSeq) return;
+        list.innerHTML = `<p class="inline-err">${escapeHtml(agentErr(e))}</p>`;
+    }
+}
+
+function candHTML(c, i, top) {
+    const warns = (c.warnings || []).map(w => `<p>${escapeHtml(stripName(w, c.name))}</p>`).join('');
+    return `<div class="cand ${!c.ok ? 'blocked' : top ? 'top' : ''}" id="cand-${i}">
+        <div class="cand-row">
+            <div style="min-width:0">
+                <p class="name">${escapeHtml(c.name)}${c.phone ? `<span class="phone">${escapeHtml(c.phone)}</span>` : ''}</p>
+                ${(c.reasons || []).length ? `<p class="reasons">${c.reasons.map(escapeHtml).join(', ')}</p>` : ''}
+            </div>
+            <button class="btn ${top ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="assignReplacement(${i})">${c.ok ? 'שבץ ושלח הודעה' : 'לשבץ בכל זאת'}</button>
+        </div>
+        ${warns ? `<div class="warns">${warns}</div>` : ''}
+        <div class="cand-result hidden"></div>
+    </div>`;
+}
+
+async function assignReplacement(i) {
+    const c = replaceCandidates[i];
+    const card = document.getElementById(`cand-${i}`);
+    if (!c || !card || !replaceCtx) return;
+    if (!c.ok && !confirm(`השיבוץ של ${c.name} חורג מהכללים:\n${(c.warnings || []).join('\n')}\n\nלשבץ בכל זאת?`)) return;
+    const btn = card.querySelector('.cand-row .btn');
+    const out = card.querySelector('.cand-result');
+    btn.disabled = true; btn.textContent = 'משבץ…';
+    try {
+        const replaced = Number(document.getElementById('replace-exclude').value) || null;
+        const data = await agentGet(`/agents/assign/${businessId}`, {
+            method: 'POST',
+            body: JSON.stringify({ employee_id: c.employee_id, date: replaceCtx.date, shift_type: replaceCtx.shift_type,
+                                   notify: true, replaces_employee_id: replaced })
+        });
+        card.classList.add('done');
+        btn.outerHTML = `<span class="badge badge-green">${ICON('check')}שובץ</span>`;
+        const w = (data && data.warnings) || [];
+        out.className = 'cand-result';
+        out.innerHTML = `נשלחה הודעה ל${escapeHtml(c.name)} על המשמרת.`
+            + (w.length ? `<div class="warns">${w.map(x => `<p>${escapeHtml(stripName(x, c.name))}</p>`).join('')}</div>` : '');
+        loadBriefing();
+        if (currentTab === 'roster' && !rosterDirty) loadRoster();
+    } catch (e) {
+        btn.disabled = false; btn.textContent = c.ok ? 'שבץ ושלח הודעה' : 'לשבץ בכל זאת';
+        out.className = 'cand-result fail';
+        out.textContent = agentErr(e);
+    }
+}
+
+// ---------- Roster guard ----------
+let _complianceSeq = 0;
+
+async function loadRosterCompliance() {
+    const seq = ++_complianceSeq;
+    document.getElementById('compliance-body').innerHTML = '<p class="empty">בודק את הסידור…</p>';
+    try {
+        const data = await agentGet(`/agents/roster-check/${businessId}?week_start=${isoDate(rosterWeekStart)}`);
+        if (seq === _complianceSeq) renderCompliance(data);
+    } catch (e) { if (seq === _complianceSeq) renderComplianceError(e); }
+}
+
+async function checkRosterDraft() {
+    const btn = document.getElementById('btn-check-roster');
+    const seq = ++_complianceSeq;
+    btn.disabled = true;
+    try {
+        const data = await agentGet(`/agents/roster-check/${businessId}`, {
+            method: 'POST', body: JSON.stringify({ week_start: isoDate(rosterWeekStart), entries: rosterEntries() })
+        });
+        if (seq !== _complianceSeq) return;
+        renderCompliance(data);
+        // The panel now reflects what's on screen; the button comes back on the next change.
+        btn.classList.add('hidden');
+        document.getElementById('compliance-stale').classList.add('hidden');
+    } catch (e) { if (seq === _complianceSeq) renderComplianceError(e); }
+    finally { btn.disabled = false; }
+}
+
+function renderComplianceError(e) {
+    document.getElementById('compliance-chips').innerHTML = '';
+    document.getElementById('compliance-body').innerHTML = `<p class="inline-err" style="padding:0">${escapeHtml(agentErr(e))}</p>`;
+    flagRosterCells([]);
+}
+
+function renderCompliance(data) {
+    const issues = (data && data.issues) || [];
+    document.getElementById('compliance-chips').innerHTML = summaryChips(data.summary);
+    document.getElementById('compliance-disclaimer').textContent = data.disclaimer || '';
+    flagRosterCells(issues);
+    const body = document.getElementById('compliance-body');
+    if (!issues.length) {
+        body.innerHTML = `<p class="guard-ok">${ICON('check')}לא נמצאו בעיות בסידור של השבוע</p>`;
+        return;
+    }
+    const groups = new Map();
+    issues.forEach(i => {
+        const key = i.employee_id ?? 'general';
+        if (!groups.has(key)) groups.set(key, { name: i.name || 'כללי', items: [] });
+        groups.get(key).items.push(i);
+    });
+    const worst = g => Math.min(...g.items.map(i => SEV_ORDER[i.severity] ?? 9));
+    const sorted = [...groups.values()].sort((a, b) => worst(a) - worst(b) || b.items.length - a.items.length);
+    body.innerHTML = `<div class="guard-grid">${sorted.map(g => `
+        <div class="guard-emp">
+            <div class="guard-emp-h">
+                <p class="name">${escapeHtml(g.name)}</p>
+                <span class="badge badge-gray">${g.items.length === 1 ? 'הערה אחת' : `${g.items.length} הערות`}</span>
+            </div>
+            ${g.items.sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9))
+                .map(i => `<div class="issue">${sevDot(i.severity)}<span>${escapeHtml(stripName(i.message, i.name))}</span></div>`).join('')}
+        </div>`).join('')}</div>`;
+}
+
+// Small dot on the roster cell (employee + day) that has a serious issue; weekly issues mark the name.
+function flagRosterCells(issues) {
+    document.querySelectorAll('#roster-body td.flag').forEach(td => {
+        td.classList.remove('flag', 'flag-high', 'flag-medium'); td.removeAttribute('title');
+    });
+    issues.forEach(i => {
+        if (i.employee_id == null || (i.severity !== 'high' && i.severity !== 'medium')) return;
+        const row = document.querySelector(`#roster-body tr[data-uid="${Number(i.employee_id)}"]`);
+        if (!row) return;
+        let td = row.children[0];
+        if (i.date) {
+            const idx = Math.round((parseISODate(i.date) - rosterWeekStart) / 86400000);
+            if (idx < 0 || idx > 6) return;
+            td = row.children[idx + 1];
+        }
+        if (!td) return;
+        const high = i.severity === 'high' || td.classList.contains('flag-high');
+        td.classList.remove('flag-medium');
+        td.classList.add('flag', high ? 'flag-high' : 'flag-medium');
+        td.title = (td.title ? td.title + '\n' : '') + i.message;
+    });
+}
+
+// ---------- Payroll audit ----------
+const PA_GROUPS = { high: 'לתקן לפני השכר', medium: 'כדאי לבדוק', info: 'לידיעה' };
+let _paSeq = 0;
+
+async function loadPayrollAudit() {
+    const val = document.getElementById('pa-month').value;
+    const body = document.getElementById('pa-body');
+    const summary = document.getElementById('pa-summary');
+    if (!val) { body.innerHTML = '<p class="empty">בחר חודש</p>'; return; }
+    const [y, m] = val.split('-');
+    const seq = ++_paSeq;
+    const btn = document.getElementById('btn-pa-run');
+    btn.disabled = true;
+    body.innerHTML = '<p class="empty">בודק את החודש…</p>';
+    try {
+        const data = await agentGet(`/agents/payroll-audit/${businessId}?year=${+y}&month=${+m}`);
+        if (seq !== _paSeq) return;
+        const sum = data.summary || {};
+        summary.classList.remove('hidden');
+        summary.innerHTML = `
+            <div class="kpi"><p>משמרות שנבדקו</p><strong>${Number(data.shifts_checked || 0).toLocaleString('he-IL')}</strong></div>
+            <div class="kpi"><p>שעות בחודש</p><strong>${Number(data.total_hours || 0).toLocaleString('he-IL')}</strong></div>
+            <div class="kpi"><p>לתקן לפני השכר</p><strong style="color:${sum.high ? 'var(--stop)' : 'var(--ok)'}">${sum.high || 0}</strong></div>`;
+        document.getElementById('pa-disclaimer').textContent = data.disclaimer || '';
+        const issues = data.issues || [];
+        if (!issues.length) {
+            body.innerHTML = `<div class="panel"><p class="pa-clean">${ICON('check')}לא נמצאו בעיות בחודש הזה. אפשר להעביר לשכר</p></div>`;
+            return;
+        }
+        body.innerHTML = ['high', 'medium', 'info'].map(sev => {
+            const list = issues.filter(i => i.severity === sev);
+            if (!list.length) return '';
+            return `<div class="panel pa-group">
+                <div class="panel-h"><h3>${sevDot(sev)}${PA_GROUPS[sev]}</h3><span class="chip"><b>${list.length}</b>${list.length === 1 ? 'ממצא' : 'ממצאים'}</span></div>
+                <div class="panel-b">${list.map(i => `<div class="issue"><span>${boldName(i.message, i.name)}</span></div>`).join('')}</div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        if (seq !== _paSeq) return;
+        summary.classList.add('hidden');
+        body.innerHTML = `<div class="panel"><p class="inline-err">${escapeHtml(agentErr(e))}</p></div>`;
+    } finally { btn.disabled = false; }
+}
+
+// ---------- Change log ----------
+const AUDIT_KEYS = {
+    full_name: 'שם', role: 'תפקיד', hourly_rate: 'תעריף', phone: 'טלפון', email: 'אימייל', is_active: 'פעיל',
+    birth_date: 'תאריך לידה', status: 'סטטוס', clock_in: 'כניסה', clock_out: 'יציאה', shift_type: 'משמרת',
+    date: 'תאריך', employee_id: 'עובד', manager_note: 'הערה', tool: 'פעולה', args: 'פרטים', changes: 'שינויים',
+};
+const AUDIT_VALUES = { morning: 'בוקר', evening: 'ערב', double: 'כפולה', off: 'חופש', manager: 'מנהל', worker: 'עובד',
+    pending: 'ממתינה', approved: 'אושרה', rejected: 'נדחתה',
+    set_roster_shift: 'שיבוץ במשמרת', update_leave_status: 'עדכון בקשת היעדרות', notify_employee: 'הודעה לעובד' };
+let auditRows = [];
+
+function fmtStamp(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso || '');
+    return m ? `${m[3]}/${m[2]} ${m[4]}:${m[5]}` : '–';
+}
+function auditVal(v, key) {
+    if (v == null || v === '') return '–';
+    if (typeof v === 'boolean') return v ? 'כן' : 'לא';
+    if ((key === 'employee_id' || key === 'user_id') && typeof v === 'number') {
+        const emp = employees.find(e => e.id === v);
+        if (emp) return emp.full_name;
+    }
+    if (typeof v === 'string') {
+        if (AUDIT_VALUES[v]) return AUDIT_VALUES[v];
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return fmtStamp(v);
+        const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+        if (d) return `${d[3]}/${d[2]}/${d[1]}`;
+        return v;
+    }
+    if (Array.isArray(v)) {
+        if (v.length && v[0] && typeof v[0] === 'object' && 'to' in v[0])
+            return v.map(c => `${c.name}, ${c.day}: ${auditVal(c.from)} ← ${auditVal(c.to)}`).join('\n');
+        return v.map(auditVal).join(', ');
+    }
+    if (typeof v === 'object') return Object.entries(v).map(([k, x]) => `${AUDIT_KEYS[k] || k}: ${auditVal(x, k)}`).join(', ');
+    return String(v);
+}
+function auditDl(obj, other) {
+    return `<dl>${Object.entries(obj).map(([k, v]) => {
+        const changed = other && JSON.stringify(other[k]) !== JSON.stringify(v);
+        return `<dt>${escapeHtml(AUDIT_KEYS[k] || k)}</dt><dd class="${changed ? 'changed' : ''}" style="white-space:pre-line">${escapeHtml(auditVal(v, k))}</dd>`;
+    }).join('')}</dl>`;
+}
+
+async function loadAuditLog() {
+    const tbody = document.getElementById('audit-table');
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">טוען…</td></tr>';
+    try {
+        auditRows = await agentGet(`/audit/${businessId}?limit=100`) || [];
+        tbody.innerHTML = !auditRows.length
+            ? '<tr><td colspan="4" class="empty">עוד אין שינויים ביומן</td></tr>'
+            : auditRows.map((r, i) => {
+                const has = (r.before && Object.keys(r.before).length) || (r.after && Object.keys(r.after).length);
+                return `<tr>
+                    <td class="when num">${fmtStamp(r.created_at)}</td>
+                    <td class="who">${escapeHtml(r.actor || 'מערכת')}</td>
+                    <td><div class="what">${escapeHtml(r.summary || r.action)}${r.source === 'ai' ? '<span class="badge badge-violet">AI</span>' : ''}</div></td>
+                    <td style="text-align:left">${has ? `<button class="link-btn" onclick="toggleAuditDetail(${i}, this)">פרטים</button>` : ''}</td>
+                </tr>
+                <tr class="detail hidden" id="audit-detail-${i}"><td colspan="4"></td></tr>`;
+            }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4"><p class="inline-err" style="padding:8px 0">${escapeHtml(agentErr(e))}</p></td></tr>`;
+    }
+}
+
+function toggleAuditDetail(i, btn) {
+    const row = document.getElementById(`audit-detail-${i}`);
+    const r = auditRows[i];
+    if (!row || !r) return;
+    if (row.classList.contains('hidden')) {
+        const before = r.before && Object.keys(r.before).length ? r.before : null;
+        const after = r.after && Object.keys(r.after).length ? r.after : null;
+        row.firstElementChild.innerHTML = `<div class="diff">
+            ${before ? `<div><h4>לפני</h4>${auditDl(before)}</div>` : ''}
+            ${after ? `<div><h4>${before ? 'אחרי' : 'נרשם'}</h4>${auditDl(after, before)}</div>` : ''}
+        </div>`;
+        row.classList.remove('hidden');
+        btn.textContent = 'הסתרה';
+    } else {
+        row.classList.add('hidden');
+        btn.textContent = 'פרטים';
+    }
+}
+
+async function verifyAuditLog() {
+    const btn = document.getElementById('btn-audit-verify');
+    const out = document.getElementById('audit-verify');
+    btn.disabled = true;
+    out.className = 'verify-msg'; out.textContent = 'בודק…';
+    try {
+        const d = await agentGet(`/audit/${businessId}/verify`);
+        out.className = `verify-msg ${d.ok ? 'ok' : 'bad'}`;
+        out.innerHTML = `${d.ok ? ICON('check') : ICON('x')}${escapeHtml(d.message || (d.ok ? 'היומן תקין' : 'היומן לא תקין'))}`;
+    } catch (e) {
+        out.className = 'verify-msg bad';
+        out.textContent = agentErr(e);
+    } finally { btn.disabled = false; }
+}
+
+// ---------- Employees: youth marker ----------
+function ageFrom(birth) {
+    if (!birth) return null;
+    const b = parseISODate(birth), t = new Date();
+    if (isNaN(b)) return null;
+    let a = t.getFullYear() - b.getFullYear();
+    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) a--;
+    return a;
+}
+function youthBadge(birth) {
+    const a = ageFrom(birth);
+    return a != null && a < 18 ? `<span class="badge badge-violet" style="margin-right:8px" title="חלים כללי חוק עבודת הנוער">נוער, ${a}</span>` : '';
 }
