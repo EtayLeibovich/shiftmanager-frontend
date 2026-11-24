@@ -180,6 +180,7 @@ function showApp() {
     loadEmployees();
     loadDashboard();
     loadApprovalsBadge();
+    loadSwapsBadge();
     notifInterval = setInterval(loadNotifications, 30000);
     setInterval(() => { if (currentTab === 'dashboard') loadDashboard(); }, 60000);
 }
@@ -196,7 +197,7 @@ function closeSidebar() {
 const TAB_TITLES = {
     dashboard: 'סקירה', 'manage-shifts': 'נוכחות עכשיו', employees: 'עובדים', approvals: 'הצטרפות לעסק',
     leave: 'בקשות היעדרות', roster: 'סידור עבודה', shifts: 'היסטוריית משמרות', reports: 'דוחות שכר',
-    ai: 'עוזר AI', branches: 'סניפים', 'payroll-audit': 'בקרת שכר', 'audit-log': 'יומן שינויים',
+    ai: 'עוזר AI', branches: 'סניפים', 'payroll-audit': 'בקרת שכר', 'audit-log': 'יומן שינויים', swaps: 'החלפות',
 };
 
 function switchTab(tab) {
@@ -223,6 +224,7 @@ function refreshCurrentTab() {
     else if (currentTab === 'ai') ensureAIEmptyState();
     else if (currentTab === 'payroll-audit') loadPayrollAudit();
     else if (currentTab === 'audit-log') loadAuditLog();
+    else if (currentTab === 'swaps') loadSwaps();
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -274,6 +276,7 @@ async function loadDashboard() {
         document.getElementById('stat-total-emp').textContent = emps.filter(e => e.is_active).length;
         document.getElementById('stat-leave').textContent = stats.pending_leave ?? 0;
         setCount('leave-badge', stats.pending_leave);
+        loadSwapsBadge();
 
         renderNotifications(notifs);
 
@@ -309,6 +312,8 @@ function cleanMsg(m) { return String(m || '').replace(/^[^\p{L}\p{N}]+/u, '').re
 const NOTIF_NAV = {
     registration_pending: { label: 'להצטרפות לעסק', tab: 'approvals' },
     leave_pending: { label: 'לבקשות ההיעדרות', tab: 'leave' },
+    swap_request: { label: 'להחלפות', tab: 'swaps' },
+    swap_volunteer: { label: 'לאישור ההחלפה', tab: 'swaps' },
 };
 
 function notifHTML(n) {
@@ -1191,7 +1196,7 @@ function boldName(msg, name) {
 
 // ---------- Morning briefing ----------
 const TAB_ALIAS = { attendance: 'manage-shifts' };
-const TAB_ACTION_LABEL = { 'manage-shifts': 'לנוכחות', leave: 'לבקשות', approvals: 'לאישור', employees: 'לעובדים', roster: 'לסידור' };
+const TAB_ACTION_LABEL = { 'manage-shifts': 'לנוכחות', leave: 'לבקשות', approvals: 'לאישור', employees: 'לעובדים', roster: 'לסידור', swaps: 'להחלפות' };
 let briefingItems = [];
 let briefingLoaded = false;
 let _briefingSeq = 0;
@@ -1293,6 +1298,7 @@ async function loadReplacements() {
     if (!date) { list.innerHTML = '<p class="empty">בחר תאריך</p>'; meta.textContent = ''; return; }
     const seq = ++_replaceSeq;
     const ex = document.getElementById('replace-exclude').value;
+    resetPostOpenShift();
     list.innerHTML = '<p class="empty">מחפש מחליפים…</p>';
     meta.textContent = '';
     try {
@@ -1354,6 +1360,207 @@ async function assignReplacement(i) {
     } catch (e) {
         btn.disabled = false; btn.textContent = c.ok ? 'שבץ ושלח הודעה' : 'לשבץ בכל זאת';
         out.className = 'cand-result fail';
+        out.textContent = agentErr(e);
+    }
+}
+
+function resetPostOpenShift() {
+    const btn = document.getElementById('btn-replace-post');
+    const msg = document.getElementById('replace-post-msg');
+    if (!btn || !msg) return;
+    btn.disabled = false;
+    btn.innerHTML = `${ICON('send')}פרסום לכל העובדים`;
+    msg.className = 'cand-result hidden';
+    msg.textContent = '';
+}
+
+// Publish the shift to every worker's portal; the roster changes only after the manager approves a volunteer
+async function postOpenShift() {
+    const date = document.getElementById('replace-date').value;
+    const btn = document.getElementById('btn-replace-post');
+    const msg = document.getElementById('replace-post-msg');
+    if (!date) { msg.className = 'cand-result fail'; msg.textContent = 'בחר תאריך'; return; }
+    const replaced = Number(document.getElementById('replace-exclude').value) || null;
+    btn.disabled = true; btn.textContent = 'מפרסם…';
+    try {
+        await agentGet(`/swaps/post/${businessId}`, {
+            method: 'POST',
+            body: JSON.stringify({ date, shift_type: replaceShift, replaces_employee_id: replaced })
+        });
+        btn.innerHTML = `${ICON('check')}פורסם`;
+        msg.className = 'cand-result';
+        msg.textContent = 'פורסם. העובדים קיבלו הודעה, ומי שירצה לקחת יופיע בלשונית ההחלפות.';
+        loadSwapsBadge();
+        loadBriefing();
+        if (currentTab === 'swaps') loadSwaps();
+    } catch (e) {
+        btn.disabled = false; btn.innerHTML = `${ICON('send')}פרסום לכל העובדים`;
+        msg.className = 'cand-result fail';
+        msg.textContent = agentErr(e);
+    }
+}
+
+// ---------- Shift swaps ("מי לוקח?") ----------
+// A worker asks for a replacement (or the manager posts an open shift), every worker sees it in the portal,
+// volunteers tap "אני לוקח/ת", and only the manager's approval changes the roster.
+let swapsShowClosed = false;
+let swapsData = [];
+let _swapsSeq = 0;
+const SWAP_STATUS = { open: ['פתוחה', 'badge-amber'], filled: ['נמצא מחליף', 'badge-green'], cancelled: ['בוטלה', 'badge-gray'] };
+
+function swapsWaiting(list) {
+    return (list || []).filter(s => s.status === 'open' && (s.volunteers || []).some(v => v.status === 'pending')).length;
+}
+
+async function loadSwapsBadge() {
+    try {
+        const res = await apiFetch(`/swaps/manage/${businessId}`);
+        if (res.ok) setCount('swaps-badge', swapsWaiting(await res.json()));
+    } catch {}
+}
+
+function showToast(text) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.innerHTML = `${ICON('check')}<span>${escapeHtml(text)}</span>`;
+    t.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove('show'), 4200);
+}
+
+function swapWhen(s) {
+    return `<span class="shift-dot ${escapeHtml(s.shift_type)}"></span>${escapeHtml(s.label || SHIFT_HE[s.shift_type] || '')}`
+        + ` · יום ${escapeHtml(s.day || '')} <span class="num">${ddmm(s.date)}</span>`
+        + ` · <bdi class="num" dir="ltr">${escapeHtml(s.start || '')}–${escapeHtml(s.end || '')}</bdi>`;
+}
+
+function volStamp(iso) {
+    if (!iso) return '';
+    const t = /T(\d{2}:\d{2})/.exec(iso);
+    return `סימן/ה ב-${ddmm(iso)}${t ? `, ${t[1]}` : ''}`;
+}
+
+function volHTML(s, v) {
+    const warns = (v.warnings || []).map(w => `<p>${escapeHtml(stripName(w, v.name))}</p>`).join('');
+    let right = '';
+    if (s.status === 'open' && v.status === 'pending') {
+        right = `<button class="btn ${(v.warnings || []).length ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="approveSwap(${s.id}, ${v.user_id})">${ICON('check')}אישור</button>`;
+    } else if (v.status === 'approved') {
+        right = `<span class="badge badge-green">${ICON('check')}אושר/ה</span>`;
+    } else if (v.status === 'declined') {
+        right = `<span class="badge badge-gray">לא נבחר/ה</span>`;
+    }
+    return `<div class="cand ${v.status === 'approved' ? 'done' : ''} ${v.status === 'declined' ? 'blocked' : ''}" id="vol-${s.id}-${v.user_id}">
+        <div class="cand-row">
+            <div style="min-width:0">
+                <p class="name">${escapeHtml(v.name)}</p>
+                ${v.created_at ? `<p class="reasons num">${volStamp(v.created_at)}</p>` : ''}
+            </div>
+            ${right}
+        </div>
+        ${warns ? `<div class="warns">${warns}</div>` : ''}
+    </div>`;
+}
+
+function swapHTML(s) {
+    const vols = s.volunteers || [];
+    const pending = vols.filter(v => v.status === 'pending').length;
+    let [label, cls] = SWAP_STATUS[s.status] || [s.status, 'badge-gray'];
+    if (s.status === 'open') {
+        label = pending ? (pending === 1 ? '1 מתנדב/ת' : `${pending} מתנדבים`) : 'מחכה למתנדבים';
+        cls = pending ? 'badge-amber' : 'badge-gray';
+    }
+    if (s.status === 'filled' && s.filled_by) label = `${s.filled_by} לקח/ה`;
+    const who = s.requester
+        ? `${escapeHtml(s.requester)} <span class="muted" style="font-weight:400">מחפש/ת מחליף</span>`
+        : `משמרת פנויה <span class="muted" style="font-weight:400">· פורסם על ידך</span>`;
+    const body = vols.length
+        ? `<div class="cand-list swap-vols">${vols.map(v => volHTML(s, v)).join('')}</div>`
+        : (s.status === 'open' ? `<p class="swap-wait">עוד אף אחד לא סימן. כל העובדים קיבלו הודעה, ומי שירצה לקחת יופיע כאן.</p>` : '');
+    return `<div class="card swap-card ${s.status === 'open' && pending ? 'attention' : ''} ${s.status !== 'open' ? 'closed' : ''}" id="swap-${s.id}">
+        <div class="card-row">
+            <div style="min-width:0">
+                <p class="title">${who}</p>
+                <p class="meta">${swapWhen(s)}</p>
+            </div>
+            <span class="badge ${cls}">${escapeHtml(label)}</span>
+        </div>
+        ${s.note ? `<p class="quote">${escapeHtml(s.note)}</p>` : ''}
+        ${body}
+        <p class="cand-result swap-result hidden"></p>
+        ${s.status === 'open' ? `<div class="swap-foot"><button class="link-btn danger" onclick="cancelSwap(${s.id})">ביטול בקשה</button></div>` : ''}
+    </div>`;
+}
+
+async function loadSwaps(showClosed = swapsShowClosed) {
+    swapsShowClosed = showClosed;
+    document.getElementById('swaps-filter-open')?.classList.toggle('active', !showClosed);
+    document.getElementById('swaps-filter-all')?.classList.toggle('active', showClosed);
+    const list = document.getElementById('swaps-list');
+    const seq = ++_swapsSeq;
+    if (!swapsData.length) list.innerHTML = '<p class="empty">טוען…</p>';
+    try {
+        const data = await agentGet(`/swaps/manage/${businessId}?include_closed=${showClosed}`);
+        if (seq !== _swapsSeq) return;
+        swapsData = data || [];
+        setCount('swaps-badge', swapsWaiting(swapsData));
+        // open requests first (soonest first), then history (newest first)
+        const open = swapsData.filter(s => s.status === 'open');
+        const closed = swapsData.filter(s => s.status !== 'open').reverse();
+        if (!open.length && !closed.length) {
+            list.innerHTML = `<div class="panel swaps-empty">${ICON('swap')}<p>אין בקשות החלפה פתוחות</p>
+                <span>כשעובד יבקש מחליף בפורטל, או כשתפרסם משמרת מ"מציאת מחליף", היא תופיע כאן.</span></div>`;
+            return;
+        }
+        let html = open.length ? open.map(swapHTML).join('') : '<p class="empty" style="padding:20px 16px">אין בקשות החלפה פתוחות</p>';
+        if (closed.length) html += `<p class="swaps-sep">היסטוריה</p>` + closed.map(swapHTML).join('');
+        list.innerHTML = html;
+    } catch (e) {
+        if (seq !== _swapsSeq) return;
+        list.innerHTML = `<p class="inline-err">${escapeHtml(agentErr(e))}</p>`;
+    }
+}
+
+async function approveSwap(swapId, userId) {
+    const s = swapsData.find(x => x.id === swapId);
+    const v = s && (s.volunteers || []).find(x => x.user_id === userId);
+    const card = document.getElementById(`swap-${swapId}`);
+    if (!s || !v || !card) return;
+    if ((v.warnings || []).length && !confirm(`השיבוץ של ${v.name} חורג מהכללים:\n${v.warnings.join('\n')}\n\nלאשר בכל זאת?`)) return;
+    const btn = card.querySelector(`#vol-${swapId}-${userId} .btn`);
+    const out = card.querySelector('.swap-result');
+    card.querySelectorAll('.btn, .link-btn').forEach(b => { b.disabled = true; });
+    if (btn) btn.textContent = 'מאשר…';
+    try {
+        const data = await agentGet(`/swaps/${swapId}/approve`, { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+        showToast(`${data.taker || v.name} לוקח/ת את המשמרת. כולם קיבלו הודעה`);
+        loadSwaps();
+        loadBriefing();
+        if (currentTab === 'roster' && !rosterDirty) loadRoster();
+    } catch (e) {
+        card.querySelectorAll('.btn, .link-btn').forEach(b => { b.disabled = false; });
+        if (btn) btn.innerHTML = `${ICON('check')}אישור`;
+        out.className = 'cand-result fail swap-result';
+        out.textContent = agentErr(e);
+    }
+}
+
+async function cancelSwap(swapId) {
+    const s = swapsData.find(x => x.id === swapId);
+    const card = document.getElementById(`swap-${swapId}`);
+    if (!s || !card) return;
+    const vols = (s.volunteers || []).filter(v => v.status === 'pending').length;
+    if (!confirm(`לבטל את הבקשה ל${s.label} ביום ${s.day} ${ddmm(s.date)}?` + (vols ? `\n${vols === 1 ? 'מי שהתנדב/ה יקבל/תקבל' : `${vols} המתנדבים יקבלו`} הודעה שהבקשה בוטלה.` : ''))) return;
+    const out = card.querySelector('.swap-result');
+    card.querySelectorAll('.btn, .link-btn').forEach(b => { b.disabled = true; });
+    try {
+        await agentGet(`/swaps/${swapId}/cancel`, { method: 'POST' });
+        showToast('הבקשה בוטלה');
+        loadSwaps();
+        loadBriefing();
+    } catch (e) {
+        card.querySelectorAll('.btn, .link-btn').forEach(b => { b.disabled = false; });
+        out.className = 'cand-result fail swap-result';
         out.textContent = agentErr(e);
     }
 }

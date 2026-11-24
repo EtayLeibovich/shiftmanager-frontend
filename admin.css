@@ -351,6 +351,34 @@ label.lbl { display: block; font-size: 13px; color: var(--dim); margin-bottom: 6
 .tab-section { display: none; }
 .tab-section.active { display: block; }
 
+/* ---------------- Shift swaps ---------------- */
+.shift-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 7px; background: var(--faint); vertical-align: 1px; }
+.shift-dot.morning { background: var(--day); }
+.shift-dot.evening { background: var(--dusk); }
+.shift-dot.double { background: linear-gradient(90deg, var(--dusk) 50%, var(--day) 50%); }
+.swap-card .meta { color: var(--dim); }
+.swap-card .swap-vols { margin-top: 14px; }
+.swap-card.closed { background: rgba(19,30,51,.6); }
+.swap-card.closed .title { color: var(--dim); }
+.swap-wait { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); color: var(--faint); font-size: 13px; }
+.swap-foot { display: flex; justify-content: flex-end; margin-top: 10px; margin-bottom: -6px; }
+.swaps-sep { color: var(--faint); font-size: 13px; font-weight: 500; margin: 14px 2px 0; }
+.swaps-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 40px 20px; color: var(--dim); }
+.swaps-empty .i { width: 28px; height: 28px; color: var(--day); margin-bottom: 4px; }
+.swaps-empty p { color: var(--text); font-size: 16px; font-weight: 600; }
+.swaps-empty span { font-size: 14px; max-width: 380px; }
+.replace-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.replace-foot .t { font-weight: 600; font-size: 14px; }
+.replace-foot .faint { font-size: 13px; margin-top: 2px; max-width: 340px; }
+#replace-post-msg { margin-top: 10px; }
+
+/* Toast */
+.toast { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translate(-50%, 20px); z-index: 200; display: flex; align-items: center; gap: 10px;
+    max-width: calc(100vw - 32px); padding: 12px 18px; border-radius: 12px; background: var(--raise); border: 1px solid rgba(47,196,141,.35); color: var(--text); font-size: 14px; font-weight: 500;
+    box-shadow: 0 18px 50px -12px rgba(0,0,0,.7); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.toast .i { width: 18px; height: 18px; color: var(--ok); flex: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
 /* ---------------- Mobile ---------------- */
 #sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 25; background: rgba(5,9,18,.6); }
 #sidebar-overlay.open { display: block; }

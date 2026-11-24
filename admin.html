@@ -78,6 +78,7 @@
             <button class="sidebar-link" id="nav-employees" onclick="switchTab('employees')"><svg class="i"><use href="#i-users"/></svg>עובדים</button>
             <button class="sidebar-link" id="nav-approvals" onclick="switchTab('approvals')"><svg class="i"><use href="#i-user-plus"/></svg>הצטרפות לעסק<span id="approvals-badge" class="count info">0</span></button>
             <button class="sidebar-link" id="nav-leave" onclick="switchTab('leave')"><svg class="i"><use href="#i-plane"/></svg>בקשות היעדרות<span id="leave-badge" class="count warn">0</span></button>
+            <button class="sidebar-link" id="nav-swaps" onclick="switchTab('swaps')"><svg class="i"><use href="#i-swap"/></svg>החלפות<span id="swaps-badge" class="count info">0</span></button>
 
             <p class="sb-group">תכנון ושכר</p>
             <button class="sidebar-link" id="nav-roster" onclick="switchTab('roster')"><svg class="i"><use href="#i-calendar"/></svg>סידור עבודה</button>
@@ -232,6 +233,18 @@
                     </div>
                 </div>
                 <div id="leave-list" class="stack"></div>
+            </section>
+
+            <!-- ========== SWAPS ========== -->
+            <section id="tab-swaps" class="tab-section">
+                <div class="section-h">
+                    <div><h2 class="h">החלפות</h2><p>עובד שמחפש מחליף מפרסם את המשמרת לכל הצוות. מי שמוכן לקחת מופיע כאן, והסידור משתנה רק אחרי שתאשר.</p></div>
+                    <div class="seg" role="tablist">
+                        <button onclick="loadSwaps(false)" id="swaps-filter-open" class="active">פתוחות</button>
+                        <button onclick="loadSwaps(true)" id="swaps-filter-all">כולל היסטוריה</button>
+                    </div>
+                </div>
+                <div id="swaps-list" class="stack"><p class="empty">טוען…</p></div>
             </section>
 
             <!-- ========== ROSTER ========== -->
@@ -468,6 +481,14 @@
         </div>
         <p id="replace-meta" class="faint replace-meta"></p>
         <div id="replace-list" class="cand-list"></div>
+        <div class="replace-foot">
+            <div>
+                <p class="t">אף אחד לא מתאים?</p>
+                <p class="faint">פרסום לכל העובדים: מי שרוצה יסמן בפורטל, והסידור ישתנה רק אחרי שתאשר בלשונית ההחלפות.</p>
+            </div>
+            <button id="btn-replace-post" class="btn btn-ghost btn-sm" onclick="postOpenShift()"><svg class="i"><use href="#i-send"/></svg>פרסום לכל העובדים</button>
+        </div>
+        <p id="replace-post-msg" class="cand-result hidden"></p>
     </div>
 </div>
 
@@ -553,6 +574,8 @@
         </div>
     </div>
 </div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 </body>
 </html>
